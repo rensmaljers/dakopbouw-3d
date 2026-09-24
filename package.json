@@ -1,0 +1,1 @@
+{"name":"dakopbouw-3d","private":true,"scripts":{"test":"node tests/geometry.cjs","start":"python3 -m http.server 4173"}}
