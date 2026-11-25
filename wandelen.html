@@ -65,7 +65,8 @@
   }
 </style>
 <script type="importmap">
-{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" } }
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+               "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }
 </script>
 </head>
 <body>
@@ -92,6 +93,11 @@
       <button id="cam-3" class="actief">Achter je</button>
       <button id="cam-1">Ogen</button>
     </div>
+    <div class="titel">Beeld</div>
+    <div class="wissel">
+      <button id="bq-hoog" class="actief">Mooi</button>
+      <button id="bq-snel">Snel</button>
+    </div>
     <div class="titel">Ga naar</div>
     <div class="knoppen">
       <button data-ga="voordeur">Voordeur</button>
@@ -114,6 +120,12 @@
 
 <script type="module">
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+const MOBIEL = matchMedia('(pointer: coarse)').matches || innerWidth < 760;
 
 // ---------- maten (meters; x = voorgevel→achtergevel, z = buren(-) → straatzijde(+)) ----------
 const L = 8.84, HB = 3.045;                 // binnenmaat lengte, halve breedte
@@ -130,34 +142,67 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 1.0;
 view.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xCFDCE5);
-scene.fog = new THREE.Fog(0xCFDCE5, 40, 90);
-const camera = new THREE.PerspectiveCamera(62, 1, 0.05, 200);
+// lucht: verticaal verloop (zenit diepblauw → heiige horizon → grond)
+{
+  const c = document.createElement('canvas'); c.width = 4; c.height = 512;
+  const g = c.getContext('2d'), gr = g.createLinearGradient(0, 0, 0, 512);
+  gr.addColorStop(0, '#3F74B5'); gr.addColorStop(0.28, '#79A6D6'); gr.addColorStop(0.47, '#C9DBEA');
+  gr.addColorStop(0.5, '#DDE6EC'); gr.addColorStop(0.53, '#B9BFB8'); gr.addColorStop(1, '#8D9289');
+  g.fillStyle = gr; g.fillRect(0, 0, 4, 512);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.mapping = THREE.EquirectangularReflectionMapping;
+  scene.background = t;
+}
+scene.fog = new THREE.Fog(0xD3DEE7, 35, 110);
+const camera = new THREE.PerspectiveCamera(62, 1, 0.04, 220);
 
-scene.add(new THREE.HemisphereLight(0xEAF1F7, 0x8F8470, 1.25));
-scene.add(new THREE.AmbientLight(0xffffff, 0.35));
-const sun = new THREE.DirectionalLight(0xFFF1DD, 2.1);
+// zachte omgevingsreflecties/-licht (glas, tegels, keukenblad, kozijnen)
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.32;
+
+scene.add(new THREE.HemisphereLight(0xDCE8F5, 0x7D7262, 0.95));
+scene.add(new THREE.AmbientLight(0xFFF6EA, 0.12));
+const sun = new THREE.DirectionalLight(0xFFEBD0, 2.6);
 sun.position.set(-4, 22, -15);
 sun.target.position.set(4.4, 0, 0);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.mapSize.set(MOBIEL ? 2048 : 4096, MOBIEL ? 2048 : 4096);
 Object.assign(sun.shadow.camera, { left: -16, right: 16, top: 16, bottom: -16, near: 1, far: 60 });
-sun.shadow.bias = -0.0004;
+sun.shadow.bias = -0.0003;
+sun.shadow.radius = 3;
 sun.shadow.normalBias = 0.03;
 scene.add(sun, sun.target);
 
 // ---------- textures (getekend op canvas, 1 tegel = `meter` meter) ----------
-function tex(px, meter, draw) {
-  const c = document.createElement('canvas'); c.width = c.height = px;
-  const g = c.getContext('2d'); draw(g, px);
-  const t = new THREE.CanvasTexture(c);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
-  t.repeat.set(1 / meter, 1 / meter);
+function tex(px, meter, draw, bumpDraw) {
+  const mk = (fn, srgb) => {
+    const c = document.createElement('canvas'); c.width = c.height = px;
+    const g = c.getContext('2d'); fn(g, px);
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8;
+    if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+    t.repeat.set(1 / meter, 1 / meter);
+    return t;
+  };
+  const t = mk(draw, true);
+  if (bumpDraw) t.userData.bump = mk(bumpDraw, false);
   return t;
+}
+// houtnerf: fijne, licht golvende lijnen in een plank
+function nerf(g, x, y, w, h, base, n = 7) {
+  g.fillStyle = shade(base, 22); g.fillRect(x, y, w, h);
+  g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip();
+  for (let i = 0; i < n; i++) {
+    const yy = y + rnd() * h, a = 0.5 + rnd() * 1.5, f = 0.01 + rnd() * 0.02, ph = rnd() * 6;
+    g.strokeStyle = `rgba(70,45,20,${0.06 + rnd() * 0.1})`; g.lineWidth = 0.6 + rnd() * 1.2;
+    g.beginPath(); for (let xx = x; xx <= x + w; xx += 6) g.lineTo(xx, yy + Math.sin(xx * f + ph) * a); g.stroke();
+  }
+  if (rnd() < 0.25) { g.fillStyle = 'rgba(80,50,25,.25)'; g.beginPath(); g.ellipse(x + rnd() * w, y + h / 2, 5, 2.2, 0, 0, 7); g.fill(); }
+  g.restore();
 }
 let seed = 7;
 const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
@@ -171,16 +216,20 @@ function noise(g, s, base, amt, n = 6000, size = 2) {
   g.fillStyle = base; g.fillRect(0, 0, s, s);
   for (let i = 0; i < n; i++) { g.fillStyle = shade(base, amt); g.fillRect(rnd() * s, rnd() * s, size, size); }
 }
-const brick = (base, mortar) => tex(512, 1, (g, s) => {
-  g.fillStyle = mortar; g.fillRect(0, 0, s, s);
+const brickLayout = (s, fn) => {
   const ch = s / 16, bw = s / 4.5;
-  for (let r = 0; r < 16; r++) {
-    const off = (r % 2) * bw / 2;
-    for (let b = -1; b < 6; b++) {
-      g.fillStyle = shade(base, 26);
-      g.fillRect(off + b * bw + 3, r * ch + 3, bw - 6, ch - 6);
-    }
-  }
+  for (let r = 0; r < 16; r++) { const off = (r % 2) * bw / 2; for (let b = -1; b < 6; b++) fn(off + b * bw + 3, r * ch + 3, bw - 6, ch - 6); }
+};
+const brick = (base, mortar) => tex(1024, 1, (g, s) => {
+  noise(g, s, mortar, 18, 9000, 2);
+  brickLayout(s, (x, y, w, h) => {
+    g.fillStyle = shade(base, 30); g.fillRect(x, y, w, h);
+    for (let i = 0; i < 40; i++) { g.fillStyle = shade(base, 60); g.globalAlpha = 0.35; g.fillRect(x + rnd() * w, y + rnd() * h, 2, 2); }
+    g.globalAlpha = 0.18; g.fillStyle = '#000'; g.fillRect(x, y + h - 3, w, 3); g.globalAlpha = 1;
+  });
+}, (g, s) => {
+  g.fillStyle = '#333'; g.fillRect(0, 0, s, s);
+  brickLayout(s, (x, y, w, h) => { g.fillStyle = '#d0d0d0'; g.fillRect(x, y, w, h); });
 });
 const T = {
   grijs: brick('#77787A', '#B9B8B2'),
@@ -202,24 +251,18 @@ const T = {
       g.restore();
     }
   }),
-  laminaat: tex(512, 2, (g, s) => {
-    for (let r = 0; r < 8; r++) for (let b = -1; b < 3; b++) {
-      g.fillStyle = shade('#C8B9A2', 22);
-      const off = (r * 0.37 % 1) * s / 2;
-      g.fillRect(off + b * s / 2, r * s / 8, s / 2 - 2, s / 8 - 2);
-    }
-  }),
-  eiken: tex(512, 2, (g, s) => {
-    for (let r = 0; r < 8; r++) for (let b = -1; b < 3; b++) {
-      g.fillStyle = shade('#D9BF95', 20);
-      const off = (r * 0.61 % 1) * s / 2;
-      g.fillRect(off + b * s / 2, r * s / 8, s / 2 - 2, s / 8 - 2);
-    }
-  }),
+  laminaat: tex(1024, 2, (g, s) => {
+    g.fillStyle = '#6E5E4A'; g.fillRect(0, 0, s, s);
+    for (let r = 0; r < 8; r++) for (let b = -1; b < 3; b++) nerf(g, (r * 0.37 % 1) * s / 2 + b * s / 2, r * s / 8, s / 2 - 2, s / 8 - 2, '#C8B9A2');
+  }, (g, s) => { g.fillStyle = '#fff'; g.fillRect(0, 0, s, s); g.fillStyle = '#555'; for (let r = 0; r < 8; r++) { g.fillRect(0, r * s / 8 + s / 8 - 2, s, 2); for (let b = -1; b < 3; b++) g.fillRect((r * 0.37 % 1) * s / 2 + b * s / 2 + s / 2 - 2, r * s / 8, 2, s / 8); } }),
+  eiken: tex(1024, 2, (g, s) => {
+    g.fillStyle = '#7A6448'; g.fillRect(0, 0, s, s);
+    for (let r = 0; r < 8; r++) for (let b = -1; b < 3; b++) nerf(g, (r * 0.61 % 1) * s / 2 + b * s / 2, r * s / 8, s / 2 - 2, s / 8 - 2, '#D9BF95');
+  }, (g, s) => { g.fillStyle = '#fff'; g.fillRect(0, 0, s, s); g.fillStyle = '#555'; for (let r = 0; r < 8; r++) { g.fillRect(0, r * s / 8 + s / 8 - 2, s, 2); for (let b = -1; b < 3; b++) g.fillRect((r * 0.61 % 1) * s / 2 + b * s / 2 + s / 2 - 2, r * s / 8, 2, s / 8); } }),
   tegel: tex(256, 0.6, (g, s) => {
     g.fillStyle = '#9C9C98'; g.fillRect(0, 0, s, s);
     for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) { g.fillStyle = shade('#BDBDB8', 10); g.fillRect(i * s / 2 + 2, j * s / 2 + 2, s / 2 - 4, s / 2 - 4); }
-  }),
+  }, (g, s) => { g.fillStyle = '#444'; g.fillRect(0, 0, s, s); g.fillStyle = '#ddd'; for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) g.fillRect(i * s / 2 + 2, j * s / 2 + 2, s / 2 - 4, s / 2 - 4); }),
   gras: tex(256, 2, (g, s) => noise(g, s, '#7FA35A', 40, 9000, 2)),
   stoep: tex(256, 1, (g, s) => {
     g.fillStyle = '#A9A8A2'; g.fillRect(0, 0, s, s);
@@ -237,19 +280,22 @@ const T = {
 };
 
 // ---------- materialen ----------
-const M = (o) => new THREE.MeshStandardMaterial({ roughness: 0.9, metalness: 0, ...o });
+const M = (o) => {
+  const b = o.map?.userData.bump;
+  return new THREE.MeshStandardMaterial({ roughness: 0.9, metalness: 0, ...(b ? { bumpMap: b, bumpScale: 1.2 } : {}), ...o });
+};
 const mat = {
   grijs: M({ map: T.grijs }), geel: M({ map: T.geel }), stuc: M({ map: T.stuc }), wit: M({ color: 0xF4F2EE, roughness: 0.6 }),
   visgraat: M({ map: T.visgraat, roughness: 0.7 }), laminaat: M({ map: T.laminaat, roughness: 0.75 }), eiken: M({ map: T.eiken, roughness: 0.75 }),
-  tegel: M({ map: T.tegel, roughness: 0.4 }), gras: M({ map: T.gras, roughness: 1 }), stoep: M({ map: T.stoep }),
+  tegel: M({ map: T.tegel, roughness: 0.3 }), gras: M({ map: T.gras, roughness: 1 }), stoep: M({ map: T.stoep }),
   klinker: M({ map: T.klinker }), pan: M({ map: T.pan, roughness: 0.8 }), grind: M({ map: T.grind }),
   plafond: M({ color: 0xFAF9F6 }), kozijn: M({ color: 0x2C3036, roughness: 0.5, metalness: 0.2 }), trim: M({ color: 0xF2F1EC, roughness: 0.6 }),
   deur: M({ color: 0xF0EEE9, roughness: 0.5 }), voordeur: M({ color: 0x2E3440, roughness: 0.5 }),
-  glas: new THREE.MeshStandardMaterial({ color: 0xA8C2D2, roughness: 0.05, metalness: 0.2, transparent: true, opacity: 0.28, depthWrite: false }),
-  zwart: M({ color: 0x24272B, roughness: 0.55 }), blad: M({ color: 0xCFC6BA, roughness: 0.35 }), rvs: M({ color: 0x9A9C9E, metalness: 0.7, roughness: 0.3 }),
+  glas: new THREE.MeshPhysicalMaterial({ color: 0xB8CCD8, roughness: 0.04, metalness: 0, transparent: true, opacity: 0.2, depthWrite: false, envMapIntensity: 2.2, specularIntensity: 1 }),
+  zwart: M({ color: 0x24272B, roughness: 0.55 }), blad: M({ color: 0xCFC6BA, roughness: 0.25 }), rvs: M({ color: 0xA4A6A8, metalness: 0.9, roughness: 0.25 }),
   hout: M({ color: 0xB08A60, roughness: 0.7 }), donkerhout: M({ color: 0x5B4636, roughness: 0.7 }),
   stof: M({ color: 0x585C63 }), stofLicht: M({ color: 0xB8B6B0 }), matras: M({ color: 0xEDEBE5 }), dekbed: M({ color: 0x45495A }),
-  porselein: M({ color: 0xFBFBFA, roughness: 0.25 }), plant: M({ color: 0x4F7A3A }), pot: M({ color: 0x5E6266 }),
+  porselein: M({ color: 0xFBFBFA, roughness: 0.12 }), plant: M({ color: 0x4F7A3A }), pot: M({ color: 0x5E6266 }),
   hek: M({ color: 0x7A6450 }), haag: M({ color: 0x4E6E3A, roughness: 1 }), boom: M({ color: 0x5F8A45, roughness: 1 }), stam: M({ color: 0x5A4634 }),
   wasm: M({ color: 0xF2F2F0, roughness: 0.4 }), zonnepaneel: M({ color: 0x182230, roughness: 0.25, metalness: 0.5 }),
   gat: M({ color: 0x3A3D42 }),
@@ -533,7 +579,7 @@ withTag('opb', () => {
   const shape = new THREE.Shape(prof.map(([x, y]) => new THREE.Vector2(x, y)));
   for (const [z0, d, zi] of [[-HB - EXT, EXT, -HB + 0.005], [ZS, HB + EXT - ZS, ZS - 0.005]]) {
     reg(new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: d, bevelEnabled: false }), mat.geel)).position.z = z0;
-    const ip = new THREE.Mesh(new THREE.ShapeGeometry(shape), stucDS); ip.position.z = zi; groups.opb.add(ip);
+    const ip = new THREE.Mesh(new THREE.ShapeGeometry(shape), stucDS); ip.position.z = zi; reg(ip); ip.castShadow = false;
     solid(XF, XR, z0, z0 + d, ROOF, OPB_TOP);
   }
   // --- lage kopgevels voor/achter tot de dakknik (links 239, rechts 275 mm), bekleed met pannen ---
@@ -823,7 +869,8 @@ solid(-30, -29, -40, 40, -1, 20); solid(29, 30, -40, 40, -1, 20); solid(-40, 40,
 // =====================================================================
 // SITUATIE (huidig / met opbouw)
 // =====================================================================
-let opbouw = true, actWalls = [], actSurfs = [], camList = [];
+const tmpS = new THREE.Vector3();
+let opbouw = true, actWalls = [], actSurfs = [], camList = [], fadeList = [], smalList = [];
 const actief = t => t === null || (t === 'opb' && opbouw) || (t === 'nu' && !opbouw);
 function zetSituatie(aan) {
   opbouw = aan;
@@ -831,6 +878,16 @@ function zetSituatie(aan) {
   actWalls = walls.filter(w => actief(w.tag));
   actSurfs = surfs.filter(s => actief(s.tag));
   camList = camMeshes.filter(m => actief(m.userData.tag));
+  fadeList = []; smalList = [];
+  for (const [t, g] of Object.entries(groups)) if (actief(t === 'null' ? null : t)) g.traverse(o => {
+    const om = o.userData.om || o.material;
+    if (!o.isMesh || (!Array.isArray(om) && om.transparent)) return;
+    o.geometry.computeBoundingBox(); o.updateMatrixWorld(true);
+    const bb = o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld);
+    if (bb.max.y < 0.05 || bb.max.x - bb.min.x > 30) return;   // grond, straat, terras
+    fadeList.push(o); o.userData.bb = bb;
+    const s = bb.getSize(tmpS); if (Math.max(s.x, s.y, s.z) < 1.6 || Math.max(s.x, s.z) < 0.5) smalList.push(o);
+  });
   document.getElementById('sit-nu').classList.toggle('actief', !aan);
   document.getElementById('sit-opbouw').classList.toggle('actief', aan);
   document.getElementById('ga-opbouw').disabled = !aan;
@@ -939,23 +996,96 @@ function spring() { if (P.grond) { P.vy = 3.6; P.grond = false; } }
 // CAMERA
 // =====================================================================
 const ray = new THREE.Raycaster();
-const tmpA = new THREE.Vector3(), tmpB = new THREE.Vector3();
+const tmpA = new THREE.Vector3(), tmpB = new THREE.Vector3(), tmpC = new THREE.Vector3(), tmpN = new THREE.Vector3();
+const tmpR = new THREE.Vector3(), tmpU = new THREE.Vector3(), tmpD = new THREE.Vector3();
+const OPAC = 0;            // hoe doorzichtig een muur wordt die tussen camera en jou staat
+const BINNEN_MAX = 2.4;    // binnen staat de camera dichter op je
+const vaag = new Map();    // mesh -> huidige dekking
+const wilVaag = new Set();
+let isBinnen = false;
+function vervaagbaar(mesh) {
+  if (!mesh.userData.fm) {
+    const mk = m => { const c = m.clone(); c.transparent = true; c.depthWrite = false; return c; };
+    mesh.userData.om = mesh.material;
+    mesh.userData.fm = Array.isArray(mesh.material) ? mesh.material.map(mk) : mk(mesh.material);
+  }
+}
+function updateVaag(dt) {
+  for (const m of wilVaag) if (!vaag.has(m)) { vervaagbaar(m); vaag.set(m, 1); m.material = m.userData.fm; }
+  for (const [m, o] of vaag) {
+    const doel = wilVaag.has(m) && m.visible !== false ? OPAC : 1;
+    const n = o + (doel - o) * Math.min(1, dt * (doel < o ? 12 : 6));
+    if (doel === 1 && n > 0.985) { m.material = m.userData.om; m.userData.op = 1; vaag.delete(m); continue; }
+    vaag.set(m, n); m.userData.op = n;
+    for (const fm of [].concat(m.userData.fm)) { fm.opacity = n; fm.colorWrite = n > 0.03; }   // helemaal weg = geen kleur, wél schaduw
+  }
+}
+// zit er een plafond / dak boven je hoofd?
+let binnenTeller = 0, camTeller = 0;
+function checkBinnen(head) {
+  if (binnenTeller++ % 6) return;
+  ray.set(head, tmpC.set(0, 1, 0)); ray.far = 6;
+  isBinnen = ray.intersectObjects(camList, false).length > 0;
+}
+const normaalY = h => tmpN.copy(h.face.normal).transformDirection(h.object.matrixWorld).y;
 function camUpdate(dt) {
   const head = tmpA.set(P.x, P.y + (cam.eerste ? 1.62 : 1.5), P.z);
   const dir = tmpB.set(Math.sin(cam.yaw) * Math.cos(cam.pitch), Math.sin(cam.pitch), Math.cos(cam.yaw) * Math.cos(cam.pitch));
   held.visible = !cam.eerste;
+  const zwaar = (camTeller++ & 1) === 0;
+  if (zwaar) wilVaag.clear();
+  checkBinnen(head);
   if (cam.eerste) {
     camera.position.copy(head).addScaledVector(dir, -0.05);
     camera.lookAt(head.x - dir.x, head.y - dir.y, head.z - dir.z);
+    updateVaag(dt);
     return;
   }
-  ray.set(head, dir); ray.far = cam.dist + 0.3;
-  const hit = ray.intersectObjects(camList, false)[0];
-  const doel = hit ? Math.max(0.35, hit.distance - 0.25) : cam.dist;
-  cam.d += (doel - cam.d) * Math.min(1, dt * (doel < cam.d ? 25 : 4));
+  const maxD = isBinnen ? Math.min(cam.dist, BINNEN_MAX) : cam.dist;
+  // 1. vloeren/grond onder de camera: daar schuift de camera vóór (anders kijk je door de vloer)
+  ray.set(head, dir); ray.far = maxD + 0.3;
+  let doel = maxD;
+  for (const h of ray.intersectObjects(camList, false)) {
+    if (normaalY(h) > 0.6) { doel = Math.max(0.35, h.distance - 0.25); break; }
+  }
+  if (head.y + dir.y * doel < 0.15 && dir.y < 0) doel = Math.max(0.35, (head.y - 0.15) / -dir.y);
+  cam.d += (doel - cam.d) * Math.min(1, dt * (doel < cam.d ? 20 : 4));
   camera.position.copy(head).addScaledVector(dir, cam.d);
   camera.lookAt(head);
   held.visible = cam.d > 0.6;
+  if (zwaar) {
+  // 2. alles wat tussen camera en lichaam staat wordt doorzichtig: bundel stralen van hoofd/romp/knieën
+  //    naar de camera en naar punten links/rechts/boven/onder de camera (zodat randen het beeld niet afsnijden)
+  const cp = camera.position;
+  camera.updateMatrixWorld();
+  const rx = tmpR.setFromMatrixColumn(camera.matrixWorld, 0), uy = tmpU.setFromMatrixColumn(camera.matrixWorld, 1);
+  for (const [ox, oy] of [[0, 0], [-0.45, 0], [0.45, 0], [0, 0.3], [0, -0.3], [-0.35, 0.25], [0.35, 0.25]]) {
+    const doelP = tmpD.copy(cp).addScaledVector(rx, ox).addScaledVector(uy, oy);
+    for (const hy of [1.55, 1.0, 0.4]) {
+      const o = tmpC.set(P.x, P.y + hy, P.z);
+      const d = tmpN.subVectors(doelP, o); const len = d.length();
+      ray.set(o, d.divideScalar(len)); ray.far = len + 0.1;
+      for (const h of ray.intersectObjects(fadeList, false)) if (h.distance > 0.1) wilVaag.add(h.object);
+    }
+  }
+  // 2b. kleine dingen (palen, leuningen, treden, meubels) in de 'koker' tussen camera en lichaam
+  for (const m of smalList) {
+    const bb = m.userData.bb;
+    for (let i = 0; i <= 6; i++) {
+      const f = i / 6 * 0.85;
+      for (const hy of [1.5, 0.9]) {
+        tmpC.set(P.x, P.y + hy, P.z).lerp(cp, 1 - f);
+        if (bb.distanceToPoint(tmpC) < 0.28) { wilVaag.add(m); i = 99; break; }
+      }
+    }
+  }
+  // 3. muren vlak naast de camera (anders snijdt het beeldvlak er doorheen)
+  for (const m of camList) {
+    const bb = m.userData.bb || (m.geometry.computeBoundingBox(), m.userData.bb = m.geometry.boundingBox.clone().applyMatrix4(m.matrixWorld));
+    if (bb.max.y > cp.y + 0.02 && bb.distanceToPoint(cp) < 0.18 && !bb.containsPoint(head)) wilVaag.add(m);
+  }
+  }
+  updateVaag(dt);
 }
 
 // =====================================================================
@@ -1078,13 +1208,41 @@ stickEl.addEventListener('pointerup', stickLos); stickEl.addEventListener('point
 let laatsteTik = 0;
 view.addEventListener('pointerup', e => { if (e.pointerType === 'touch') { const t = performance.now(); if (t - laatsteTik < 300) spring(); laatsteTik = t; } });
 
-function resize() { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); }
-addEventListener('resize', resize); resize();
+// ambient occlusion (zachte schaduw in hoeken en onder meubels) — alleen bij 'Mooi'
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const gtao = new GTAOPass(scene, camera, innerWidth, innerHeight);
+gtao.updateGtaoMaterial({ radius: 0.45, distanceExponent: 1.4, thickness: 1.0, scale: 1.0, samples: 12 });
+gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 16 });
+gtao.blendIntensity = 0.85;
+const gtaoVis = gtao.overrideVisibility.bind(gtao);
+gtao.overrideVisibility = () => {   // doorzichtige dingen (glas, vervaagde muren, lucht) niet meenemen in de AO
+  gtaoVis();
+  scene.traverse(o => { if (o.isMesh && ((o.userData.op ?? 1) < 1 || (!Array.isArray(o.material) && o.material.transparent))) o.visible = false; });
+};
+composer.addPass(gtao);
+composer.addPass(new OutputPass());
+let mooi = !MOBIEL;
+function zetBeeld(m) {
+  mooi = m;
+  document.getElementById('bq-hoog').classList.toggle('actief', m);
+  document.getElementById('bq-snel').classList.toggle('actief', !m);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, m ? 2 : 1.25));
+  resize();
+}
+document.getElementById('bq-hoog').onclick = () => zetBeeld(true);
+document.getElementById('bq-snel').onclick = () => zetBeeld(false);
+function resize() {
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight);
+  composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(innerWidth, innerHeight);
+}
+addEventListener('resize', resize); zetBeeld(mooi);
 
 // =====================================================================
 // LOOP
 // =====================================================================
 zetSituatie(true);
+scene.updateMatrixWorld(true);
 const klok = new THREE.Clock();
 let kaartTeller = 0;
 renderer.setAnimationLoop(() => {
@@ -1100,9 +1258,9 @@ renderer.setAnimationLoop(() => {
   sun.position.set(P.x - 8, 22, P.z - 15); sun.target.position.set(P.x, 0, P.z);
   ruimteLabel();
   if (++kaartTeller % 2 === 0) tekenKaart();
-  renderer.render(scene, camera);
+  if (mooi) composer.render(dt); else renderer.render(scene, camera);
 });
-window.__debug = { P, cam, ga, zetSituatie, walls, surfs };
+window.__debug = { gtao, get n() { return fadeList.length; }, P, cam, ga, zetSituatie, walls, surfs, vaag, zetBeeld, get binnen() { return isBinnen; } };
 </script>
 </body>
 </html>
