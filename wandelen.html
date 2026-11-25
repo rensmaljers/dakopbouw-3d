@@ -74,7 +74,7 @@
 <div id="titel" class="kaart-ui">
   <div class="oog">Van Kleffenslaan 187</div>
   <h1>Loop door het huis</h1>
-  <p>Begane grond en verdieping naar de Funda-plattegronden, keuken naar de Tevel-tekening, opbouw naar het 3D-model van juli.</p>
+  <p>Begane grond en verdieping naar de Funda-plattegronden, keuken naar de Tevel-tekening, opbouw naar de vergunningstekeningen BE-1 t/m BE-4.</p>
 </div>
 
 <div id="kamer" class="kaart-ui"><span id="kamer-laag">Buiten</span><b id="kamer-naam">Voortuin</b></div>
@@ -118,8 +118,9 @@ import * as THREE from 'three';
 // ---------- maten (meters; x = voorgevel→achtergevel, z = buren(-) → straatzijde(+)) ----------
 const L = 8.84, HB = 3.045;                 // binnenmaat lengte, halve breedte
 const CEIL0 = 2.6, F1 = 2.88;               // plafond begane grond, vloer verdieping
-const CEIL1 = 5.38, ROOF = 5.48, OPB = 5.58; // plafond verdieping, dakrand, vloer opbouw
-const OPB_TOP = 8.30;                       // dakrand opbouw
+const CEIL1 = 5.38, ROOF = 5.48;            // plafond verdieping, dakrand
+const OPB = 5.47 + (F1 - 2.80);             // vloer opbouw: BE-2 5.420 + 50 mm afwerking, verschoven naar dit verdiepingspeil
+const OPB_TOP = 8.72 + (F1 - 2.80);         // dakrand opbouw (BE-2)
 const STEP = 0.36, BODY = 1.75, RAD = 0.22;
 
 // ---------- renderer / scène ----------
@@ -474,10 +475,12 @@ W1('z', 4.63, -HB, 0, [D1(-1.3, -0.5, 1)]);                 // overloop | slaapk
 W1('x', 0, 0, L, [D1(2.75, 3.55, 1), D1(3.8, 4.6, 1)]);     // gang | slaapkamers zuid
 W1('z', 3.69, 0, HB);                                       // tussen slaapkamers zuid
 box(-0.15, 2.61, F1, F1 + 0.012, -HB, -0.05, mat.tegel, { cam: false, shadow: false });  // badkamertegels
-// balustrade langs het trapgat
-box(2.66, 3.72, F1 + 0.86, F1 + 0.92, -2.13, -2.07, mat.hout, { solid: true });
-solid(2.66, 3.72, -2.13, -2.07, F1, F1 + 0.9);
-for (let x = 2.8; x < 3.72; x += 0.12) box(x, x + 0.025, F1, F1 + 0.86, -2.11, -2.09, mat.wit, { cam: false });
+// balustrade langs het trapgat (alleen huidige situatie; met opbouw begint hier de nieuwe trap)
+withTag('nu', () => {
+  box(2.66, 3.72, F1 + 0.86, F1 + 0.92, -2.13, -2.07, mat.hout, { solid: true });
+  solid(2.66, 3.72, -2.13, -2.07, F1, F1 + 0.9);
+  for (let x = 2.8; x < 3.72; x += 0.12) box(x, x + 0.025, F1, F1 + 0.86, -2.11, -2.09, mat.wit, { cam: false });
+});
 
 // =====================================================================
 // DAK — huidige situatie (plat dak met zonnepanelen)
@@ -488,130 +491,164 @@ withTag('nu', () => {
     box(x - 0.85, x + 0.85, ROOF + 0.15, ROOF + 0.2, z - 0.5, z + 0.5, mat.zonnepaneel);
 });
 
+
 // =====================================================================
-// OPBOUW (naar 3D-model juli: mansarde voor/achter, gemetselde kopgevels, spiltrap)
+// OPBOUW volgens vergunningstekeningen BE-1 t/m BE-4 (BWZ, P026.032, wijziging a 22-09-2026)
+// Maten uit src/config.js van het dakopbouw-3d-project. BE-coördinaten: xBE vanaf buitenkant
+// burenzijde, zBE vanaf voorkant opbouw. Hier: x = XO + zBE, z = ZO + xBE, hoogtes + (F1 - 2.80).
 // =====================================================================
-const SC = { x: 3.7, z: -2.0 }, SP_R = 0.85;                 // spiltrap
-const SP_N = 14, SP_RISE = (OPB - F1) / SP_N, SP_A0 = 60, SP_DA = 24;
-const GAT_OPB = [2.85, 4.55, -2.85, -1.15];
-const BX1 = 0.2, BX2 = L - 0.2, BORST = ROOF + 1.12;          // buitenkant borstwering
-const IX1 = 0.36, IX2 = L - 0.36, PLAF2 = 8.1;
-const hProfile = x => Math.min(PLAF2, BORST + (x - IX1) * 1.5 / 1.34, BORST + (IX2 - x) * 1.5 / 1.34);
+const BE_DY = F1 - 2.80;
+const XO = -EXT + (L + 2 * EXT - 7.926) / 2;        // opbouw midden op het bestaande blok (terugligging ≈ 0,76 m)
+const ZO = -HB - 0.239;                              // binnenkant burenzijde valt samen met bestaande wand
+const EAVES = 6.20 + BE_DY, PLAF2 = 8.03 + BE_DY;    // dakknik buiten, plafond
+const ANG = 55 * Math.PI / 180, TAN = Math.tan(ANG), DAKD = 0.30;
+const XF = XO, XR = XO + 7.926, RUN = (OPB_TOP - EAVES) / TAN;
+const ZS = ZO + 6.198;                               // binnenkant zijwand straatzijde
+const ZD1 = ZO + 2.724, ZD2 = ZO + 2.860, ZD = (ZD1 + ZD2) / 2;   // langsscheidingswand 136 mm
+const XW1 = XO + 2.160 + 0.057, XW2 = XO + 4.154 + 0.057;          // dwarswanden links (114 mm)
+const XSPL = XO + 0.275 + 2.847 + 0.057;                          // dwarswand rechts
+const DUR = 0.83, DZ = ZO + 1.80;                                  // deuren links
+const PX2 = XO + 2.274 + 0.940, PZ2 = ZO + 0.239 + 0.940;          // draaipunt trap (trapbreedte 940)
+const GAT_OPB = [XO + 2.274, XO + 4.154, -HB, PZ2];                // trapgat = trap 0,94 × 1,88 m
+const yOnder = x => EAVES - DAKD / Math.cos(ANG) + Math.max(0, Math.min(x - XF, XR - x)) * TAN;
+const hIn = x => Math.min(PLAF2, yOnder(x));
+const RUIMTES_OPB = [
+  ['Wasruimte', XF + 0.239, XW1 - 0.057, -HB, ZD1], ['Overloop', XW1 + 0.057, XW2 - 0.057, -HB, ZD1],
+  ['Kamer 1', XW2 + 0.057, XR - 0.239, -HB, ZD1], ['Kamer 3', XF + 0.275, XSPL - 0.057, ZD2, ZS],
+  ['Kamer 2', XSPL + 0.057, XR - 0.275, ZD2, ZS],
+];
 
 const stucDS = M({ map: T.stuc, side: THREE.DoubleSide });
+const bitumen = M({ color: 0x2E3033, roughness: 0.95 });
+const reg = m => { m.castShadow = m.receiveShadow = true; m.userData.tag = 'opb'; groups.opb.add(m); camMeshes.push(m); return m; };
+
 withTag('opb', () => {
-  // plafond verdieping met gat + vloer opbouw met gat
-  slab(-EXT, L + EXT, -HB - EXT, HB + EXT, CEIL1, ROOF - 0.1, mat.plafond, [GAT_OPB], false);
-  slab(-EXT, L + EXT, -HB - EXT, HB + EXT, ROOF - 0.1, OPB, mat.eiken, [GAT_OPB]);
-  box(3.75, 4.55, OPB - 0.1, OPB, -2.0, -1.15, mat.eiken); rectSurf(3.75, 4.55, -2.0, -1.15, OPB);
-  // gat in het plafond van de verdieping (gat in de dunne plafondplaat tekenen we als donkere rand)
-  // borstweringen
-  box(BX1, IX1, ROOF, BORST, -HB - EXT, HB + EXT, [mat.stuc, mat.pan, mat.trim, mat.trim, mat.trim, mat.trim], { solid: true });
-  box(IX2, BX2, ROOF, BORST, -HB - EXT, HB + EXT, [mat.pan, mat.stuc, mat.trim, mat.trim, mat.trim, mat.trim], { solid: true });
-  // schuine dakvlakken
-  const run = 1.35, rise = OPB_TOP - BORST, len = Math.hypot(run, rise), ang = Math.atan2(rise, run);
+  // --- vloeren: bestaand dak blijft buiten de opbouw, vloer opbouw erop ---
+  slab(-EXT, L + EXT, -HB - EXT, HB + EXT, CEIL1, ROOF, mat.grind, [GAT_OPB]);
+  slab(XF, XR, -HB - EXT, HB + EXT, ROOF, OPB, mat.eiken, [GAT_OPB]);
+  box(XF + 0.239, XW1 - 0.057, OPB, OPB + 0.006, -HB, ZD1, mat.tegel, { cam: false, shadow: false });   // wasruimte
+
+  // --- gemetselde zijgevels (buren + straat), profiel BE-2 ---
+  const prof = [[XF, ROOF], [XF, EAVES], [XF + RUN, OPB_TOP], [XR - RUN, OPB_TOP], [XR, EAVES], [XR, ROOF]];
+  const shape = new THREE.Shape(prof.map(([x, y]) => new THREE.Vector2(x, y)));
+  for (const [z0, d, zi] of [[-HB - EXT, EXT, -HB + 0.005], [ZS, HB + EXT - ZS, ZS - 0.005]]) {
+    reg(new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: d, bevelEnabled: false }), mat.geel)).position.z = z0;
+    const ip = new THREE.Mesh(new THREE.ShapeGeometry(shape), stucDS); ip.position.z = zi; groups.opb.add(ip);
+    solid(XF, XR, z0, z0 + d, ROOF, OPB_TOP);
+  }
+  // --- lage kopgevels voor/achter tot de dakknik (links 239, rechts 275 mm), bekleed met pannen ---
+  for (const [z1, z2, t] of [[-HB, ZD2, 0.239], [ZD2, ZS, 0.275]]) {
+    box(XF, XF + t, ROOF, EAVES, z1, z2, [mat.stuc, mat.pan, mat.trim, mat.trim, mat.trim, mat.trim], { solid: true });
+    box(XR - t, XR, ROOF, EAVES, z1, z2, [mat.pan, mat.stuc, mat.trim, mat.trim, mat.trim, mat.trim], { solid: true });
+  }
+  // hoofdruimte: niet doorlopen waar het schuine dak lager is dan ±1,45 m
+  const XH = (OPB + 1.45 - EAVES + DAKD / Math.cos(ANG)) / TAN;
+  solid(XF, XF + XH, -HB, ZS, OPB + 0.4, OPB_TOP); solid(XR - XH, XR, -HB, ZS, OPB + 0.4, OPB_TOP);
+
+  // --- schuine dakvlakken 55° met 4 Velux GPL SK06 (1,14 × 1,18) ---
+  const SL = (OPB_TOP - EAVES) / Math.sin(ANG);
+  function dakDeel(front, s1, s2, z1, z2, mats, in0 = 0, in1 = DAKD) {
+    const w = s2 - s1, h = in1 - in0, d = z2 - z1;
+    const g = new THREE.BoxGeometry(w, h, d); worldUV(g, w, h, d);
+    g.translate((s1 + s2) / 2, front ? -(in0 + in1) / 2 : (in0 + in1) / 2, (z1 + z2) / 2);
+    const m = new THREE.Mesh(g, mats);
+    m.position.set(front ? XF : XR, EAVES, 0);
+    m.rotation.z = front ? ANG : Math.PI - ANG;
+    return reg(m);
+  }
+  const VW = 1.14, VH = 1.18, VS = 0.52 * SL, VF = 0.065;
+  const VELUX = { voor: [ZO + 1.43, ZO + 4.07], achter: [ZO + 1.58, ZO + 4.77] };   // ≈ uit BE-1 dakaanzicht
   for (const front of [true, false]) {
-    const g = new THREE.BoxGeometry(len + 0.1, 0.2, 2 * (HB + EXT)); worldUV(g, len + 0.1, 0.2, 2 * (HB + EXT));
-    const m = new THREE.Mesh(g, [mat.trim, mat.trim, mat.pan, mat.stuc, mat.trim, mat.trim]);
-    const mx = front ? BX1 + run / 2 : BX2 - run / 2, nx = front ? 0.1 * Math.sin(ang) : -0.1 * Math.sin(ang);
-    m.position.set(mx + nx, (BORST + OPB_TOP) / 2 - 0.1 * Math.cos(ang), 0);
-    m.rotation.z = front ? ang : -ang;
-    m.castShadow = m.receiveShadow = true; groups.opb.add(m); camMeshes.push(m);
-    m.userData.tag = 'opb';
-    // twee dakramen per dakvlak
-    for (const z of [-1.45, 1.45]) {
-      const v = new THREE.Group();
-      v.add(new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.1, 1.1), mat.kozijn));
-      const gl = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.11, 0.95), mat.glas); v.add(gl);
-      v.position.set(mx + (front ? 0.05 : -0.05), (BORST + OPB_TOP) / 2 + 0.03, z);
-      v.rotation.z = front ? ang : -ang;
-      groups.opb.add(v);
+    const mats = front ? [mat.trim, mat.trim, mat.pan, mat.plafond, mat.trim, mat.trim] : [mat.trim, mat.trim, mat.plafond, mat.pan, mat.trim, mat.trim];
+    const vz = VELUX[front ? 'voor' : 'achter'];
+    const zc = [...new Set([-HB, ZS, ...vz.flatMap(z => [z - VW / 2, z + VW / 2])])].sort((a, b) => a - b);
+    const sc = [0, VS - VH / 2, VS + VH / 2, SL];
+    for (let i = 1; i < zc.length; i++) for (let j = 1; j < sc.length; j++) {
+      const zm = (zc[i] + zc[i - 1]) / 2, sm = (sc[j] + sc[j - 1]) / 2;
+      if (vz.some(z => Math.abs(zm - z) < VW / 2 && Math.abs(sm - VS) < VH / 2)) continue;
+      dakDeel(front, sc[j - 1], sc[j], zc[i - 1], zc[i], mats);
+    }
+    for (const z of vz) {
+      const a = z - VW / 2, b = z + VW / 2, s1 = VS - VH / 2, s2 = VS + VH / 2;
+      dakDeel(front, s1, s2, a, a + VF, mat.kozijn, -0.06, DAKD); dakDeel(front, s1, s2, b - VF, b, mat.kozijn, -0.06, DAKD);
+      dakDeel(front, s1, s1 + VF, a, b, mat.kozijn, -0.06, DAKD); dakDeel(front, s2 - VF, s2, a, b, mat.kozijn, -0.06, DAKD);
+      const gl = dakDeel(front, s1 + VF, s2 - VF, a + VF, b - VF, mat.glas, 0.02, 0.04);
+      gl.castShadow = false; camMeshes.pop();
     }
   }
-  box(BX1 + run - 0.05, BX2 - run + 0.05, PLAF2, OPB_TOP, -HB - EXT, HB + EXT, [mat.trim, mat.trim, mat.grind, mat.plafond, mat.trim, mat.trim]);
-  box(BX1 + run - 0.1, BX2 - run + 0.1, OPB_TOP - 0.25, OPB_TOP + 0.02, -HB - EXT - 0.04, -HB - EXT + 0.02, mat.trim);
-  box(BX1 + run - 0.1, BX2 - run + 0.1, OPB_TOP - 0.25, OPB_TOP + 0.02, HB + EXT - 0.02, HB + EXT + 0.04, mat.trim);
-  for (const x of [2.6, 4.42, 6.24]) for (const z of [-1.83, 0, 1.83]) {
-    const p = box(x - 0.5, x + 0.5, OPB_TOP + 0.12, OPB_TOP + 0.16, z - 0.85, z + 0.85, mat.zonnepaneel);
+  // --- plat dak (bitumen), plafond 8,03, daktrim en zonnepanelen ---
+  const FX1 = XF + RUN, FX2 = XR - RUN;
+  box(FX1, FX2, PLAF2, OPB_TOP, -HB, ZS, [mat.trim, mat.trim, bitumen, mat.plafond, mat.trim, mat.trim]);
+  const XC = (PLAF2 - EAVES + DAKD / Math.cos(ANG)) / TAN;
+  box(XF + XC, XR - XC, PLAF2 - 0.02, PLAF2, -HB, ZS, mat.plafond, { shadow: false });
+  for (const x of [FX1, FX2]) box(x - 0.04, x + 0.04, OPB_TOP, OPB_TOP + 0.07, -HB - EXT - 0.02, HB + EXT + 0.02, mat.rvs);
+  for (const [z1, z2] of [[-HB - EXT - 0.03, -HB + 0.01], [ZS - 0.01, HB + EXT + 0.03]]) box(FX1, FX2, OPB_TOP, OPB_TOP + 0.05, z1, z2, mat.rvs);
+  for (const x of [3.05, 4.42, 5.79]) for (const z of [-1.95, -0.1, 1.75]) {
+    const p = box(x - 0.5, x + 0.5, OPB_TOP + 0.14, OPB_TOP + 0.18, z - 0.85, z + 0.85, mat.zonnepaneel);
     p.rotation.z = -0.2;
   }
-  // gemetselde kopgevels (straatzijde + burenzijde)
-  const prof = [[BX1, ROOF], [BX1, BORST], [BX1 + run, OPB_TOP], [BX2 - run, OPB_TOP], [BX2, BORST], [BX2, ROOF]];
-  const shape = new THREE.Shape(prof.map(([x, y]) => new THREE.Vector2(x, y)));
-  for (const zs of [HB, -HB - EXT]) {
-    const g = new THREE.ExtrudeGeometry(shape, { depth: EXT, bevelEnabled: false });
-    const m = new THREE.Mesh(g, mat.geel); m.position.z = zs; m.castShadow = m.receiveShadow = true;
-    groups.opb.add(m); camMeshes.push(m); m.userData.tag = 'opb';
-    const ip = new THREE.Mesh(new THREE.ShapeGeometry(shape), mat.stuc);
-    ip.position.z = zs > 0 ? zs - 0.005 : zs + EXT + 0.005;
-    ip.material = stucDS; groups.opb.add(ip);
-  }
-  solid(0, L, HB, HB + EXT, ROOF, OPB_TOP); solid(0, L, -HB - EXT, -HB, ROOF, OPB_TOP);
-  solid(0, 0.95, -HB, HB, OPB + 0.4, OPB_TOP); solid(L - 0.95, L, -HB, HB, OPB + 0.4, OPB_TOP); // schuine wand op hoofdhoogte
 
-  // binnenwanden opbouw
-  const WO = (axis, c, s1, s2, ops) => wall(axis, c, s1, s2, OPB, PLAF2, IW, mat.stuc, ops);
-  WO('z', 2.5, -HB, -0.24, [deur(-1.35, -0.55, -1, OPB)]);       // wasruimte
-  WO('z', 4.85, -HB, -0.24, [deur(-1.35, -0.55, 1, OPB)]);       // werkplek
-  WO('z', 3.68, -0.24, HB);                                       // tussen slaapkamers
-  // wand langs x (z = -0.24) volgt het dakprofiel
-  const segs = [[IX1, 2.7], [3.5, 3.85], [4.65, IX2]];
-  for (const [a, b] of segs) {
-    const pts = [[a, OPB], [b, OPB], [b, hProfile(b)]];
-    const top = [];
-    for (let x = b; x >= a - 1e-6; x -= Math.min(0.25, b - a)) top.push([x, hProfile(x)]);
-    top.push([a, hProfile(a)]);
+  // --- binnenwanden (BE-1) ---
+  const W2 = (c, s1, s2, t, ops) => wall('z', c, s1, s2, OPB, hIn(c), t, mat.stuc, ops);
+  W2(XW1, -HB, ZD1, 0.114, [deur(DZ - DUR / 2, DZ + DUR / 2, -1, OPB)]);   // wasruimte | overloop
+  W2(XW2, -HB, ZD1, 0.114, [deur(DZ - DUR / 2, DZ + DUR / 2, 1, OPB)]);    // overloop | kamer 1
+  W2(XSPL, ZD2, ZS, 0.114);                                                 // kamer 3 | kamer 2
+  // langswand volgt het dakprofiel, deuren naar kamer 3 en 2 vanaf de overloop
+  const profWand = (a, b) => {
+    const n = Math.max(1, Math.ceil((b - a) / 0.2)), top = [];
+    for (let i = n; i >= 0; i--) { const x = a + (b - a) * i / n; top.push([x, hIn(x)]); }
     const sh = new THREE.Shape([[a, OPB], [b, OPB], ...top].map(([x, y]) => new THREE.Vector2(x, y)));
-    const g = new THREE.ExtrudeGeometry(sh, { depth: IW, bevelEnabled: false });
-    const m = new THREE.Mesh(g, mat.stuc); m.position.z = -0.24 - IW / 2; m.castShadow = m.receiveShadow = true;
-    groups.opb.add(m); camMeshes.push(m); m.userData.tag = 'opb';
-    solid(a, b, -0.29, -0.19, OPB, PLAF2);
-  }
-  for (const [a, b] of [[2.7, 3.5], [3.85, 4.65]]) {
-    box(a, b, OPB + 2.1, PLAF2, -0.29, -0.19, mat.stuc);
-    opening('x', -0.24, IW, deur(a, b, 1, OPB), mat.trim, false);
-  }
-
-  // balustrade rond het trapgat
-  const R = (x1, x2, z1, z2) => {
-    box(x1, x2, OPB + 0.95, OPB + 1.0, z1, z2, mat.hout, { solid: false });
-    solid(x1, x2, z1, z2, OPB, OPB + 1.0);
-    const n = Math.max(2, Math.round(Math.max(x2 - x1, z2 - z1) / 0.12));
-    for (let i = 0; i <= n; i++) {
-      const t = i / n, x = x1 + (x2 - x1) * t, z = z1 + (z2 - z1) * t;
-      box(x - 0.012, x + 0.012, OPB, OPB + 0.95, z - 0.012, z + 0.012, mat.wit, { cam: false });
-    }
+    reg(new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: ZD2 - ZD1, bevelEnabled: false }), mat.stuc)).position.z = ZD1;
+    solid(a, b, ZD1, ZD2, OPB, PLAF2);
   };
-  R(2.83, 2.87, -2.85, -1.15); R(2.85, 4.55, -2.87, -2.83); R(4.53, 4.57, -2.85, -2.0);
-  R(2.85, 3.75, -1.17, -1.13); R(3.73, 3.77, -2.0, -1.15);
-
-  // spiltrap verdieping → opbouw
-  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, OPB + 1.0 - F1, 16), mat.wit);
-  post.position.set(SC.x, (F1 + OPB + 1.0) / 2, SC.z); post.castShadow = true; groups.opb.add(post);
-  solid(SC.x - 0.06, SC.x + 0.06, SC.z - 0.06, SC.z + 0.06, F1, OPB + 1);
-  const d2r = Math.PI / 180, hw = SP_DA / 2 * d2r, r0 = 0.07;
-  const tread = new THREE.Shape();
-  tread.moveTo(Math.cos(-hw) * r0, Math.sin(-hw) * r0);
-  tread.lineTo(Math.cos(-hw) * SP_R, Math.sin(-hw) * SP_R);
-  tread.absarc(0, 0, SP_R, -hw, hw, false);
-  tread.lineTo(Math.cos(hw) * r0, Math.sin(hw) * r0);
-  tread.absarc(0, 0, r0, hw, -hw, true);
-  const tg = new THREE.ExtrudeGeometry(tread, { depth: 0.05, bevelEnabled: false, curveSegments: 6 });
-  tg.rotateX(Math.PI / 2);   // shape (x, y) → wereld (x, -, y): y van de vorm wordt +z
-  const railPts = [];
-  for (let k = 0; k < SP_N - 1; k++) {
-    const th = (SP_A0 + SP_DA * k) * d2r, top = F1 + SP_RISE * (k + 1);
-    const m = new THREE.Mesh(tg, mat.hout);
-    m.position.set(SC.x, top, SC.z); m.rotation.y = -th;
-    m.castShadow = m.receiveShadow = true; groups.opb.add(m); camMeshes.push(m); m.userData.tag = 'opb';
-    sectorSurf(SC.x, SC.z, r0, SP_R + 0.02, th - hw, th + hw, top);
-    const bx = SC.x + Math.cos(th) * (SP_R - 0.03), bz = SC.z + Math.sin(th) * (SP_R - 0.03);
-    box(bx - 0.012, bx + 0.012, top, top + 0.9, bz - 0.012, bz + 0.012, mat.wit, { cam: false });
-    railPts.push(new THREE.Vector3(bx, top + 0.9, bz));
-    if (k >= 2) solid(bx - 0.07, bx + 0.07, bz - 0.07, bz + 0.07, top, top + 0.95);
+  const D3 = (XW1 + 0.057 + XSPL - 0.057) / 2, D2 = (XSPL + 0.057 + XW2 - 0.057) / 2;
+  const deurenX = [[D3 - DUR / 2, D3 + DUR / 2], [D2 - DUR / 2, D2 + DUR / 2]];
+  profWand(XF + 0.239, deurenX[0][0]); profWand(deurenX[0][1], deurenX[1][0]); profWand(deurenX[1][1], XR - 0.239);
+  for (const [a, b] of deurenX) {
+    box(a, b, OPB + 2.1, PLAF2, ZD1, ZD2, mat.stuc);
+    opening('x', ZD, ZD2 - ZD1, deur(a, b, 1, OPB), mat.trim, false);
   }
-  const rail = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(railPts), 80, 0.022, 8), mat.hout);
-  groups.opb.add(rail);
+
+  // --- trap met draai: 12 treden + vloer (13 optredes), 0,94 m breed, boven het bestaande trapgat ---
+  // Halve draai om het punt aan de overloopzijde: opgang vanaf de overloop van de verdieping,
+  // uitstap op de overloop van de opbouw. De verdeling van de draai is (net als in BE-1) schematisch.
+  const TN = 13, TR = (OPB - F1) / TN, TW = 0.94;
+  const rimT = a => {
+    const c = Math.cos(a), s = Math.sin(a); let t = 1e9;
+    if (Math.abs(c) > 1e-6) t = Math.min(t, TW / Math.abs(c)); if (s < -1e-6) t = Math.min(t, TW / -s);
+    return [PX2 + c * t, PZ2 + s * t];
+  };
+  const hoeken = [[-3 * Math.PI / 4, [PX2 - TW, PZ2 - TW]], [-Math.PI / 4, [PX2 + TW, PZ2 - TW]]];
+  for (let k = 0; k < TN - 1; k++) {
+    const a1 = -Math.PI + k * Math.PI / 12, a2 = a1 + Math.PI / 12, top = F1 + TR * (k + 1);
+    const pts = [[PX2, PZ2], rimT(a1)];
+    for (const [ca, cp] of hoeken) if (a1 < ca - 1e-9 && a2 > ca + 1e-9) pts.push(cp);
+    pts.push(rimT(a2));
+    polySurf(pts, top);
+    const g = new THREE.ExtrudeGeometry(new THREE.Shape(pts.map(([x, z]) => new THREE.Vector2(x, -z))), { depth: 0.05, bevelEnabled: false });
+    g.rotateX(-Math.PI / 2);
+    reg(new THREE.Mesh(g, mat.hout)).position.y = top - 0.05;
+    // stootbord langs de voorkant van de trede
+    const [ex, ez] = rimT(a1), len = Math.hypot(ex - PX2, ez - PZ2);
+    const st = new THREE.Mesh(new THREE.BoxGeometry(len, TR - 0.05, 0.02), mat.wit);
+    st.position.set((PX2 + ex) / 2, top - 0.05 - (TR - 0.05) / 2, (PZ2 + ez) / 2); st.rotation.y = -a1;
+    st.userData.tag = 'opb'; groups.opb.add(st);
+  }
+  // spil/hoekpaal op het draaipunt, leuning langs het trapgat op de opbouw, hekje op de verdieping
+  const paal = new THREE.Mesh(new THREE.BoxGeometry(0.08, OPB + 1.0 - F1, 0.08), mat.wit);
+  paal.position.set(PX2, (F1 + OPB + 1.0) / 2, PZ2); reg(paal);
+  solid(PX2 - 0.05, PX2 + 0.05, PZ2 - 0.05, PZ2 + 0.05, F1, OPB + 1.0);
+  const hek = (x1, x2, y0, z) => {
+    box(x1, x2, y0 + 0.86, y0 + 0.92, z - 0.03, z + 0.03, mat.hout);
+    solid(x1, x2, z - 0.03, z + 0.03, y0, y0 + 0.92);
+    for (let x = x1 + 0.05; x < x2; x += 0.1) box(x - 0.009, x + 0.009, y0, y0 + 0.86, z - 0.009, z + 0.009, mat.rvs, { cam: false });
+  };
+  hek(GAT_OPB[0], PX2, OPB, PZ2 + 0.03);                // overloop opbouw: open zijde boven de lage treden
+  hek(PX2 - 0.42, PX2, F1, PZ2 + 0.03);                  // verdieping: opstap aan de buitenkant van de draai
+  // handregel langs de buitenwand (burenzijde) van de trap
+  const rp = [];
+  for (let k = 0; k <= 24; k++) { const a = -Math.PI + k * Math.PI / 24, [x, z] = rimT(a); rp.push(new THREE.Vector3(x - Math.cos(a) * 0.06, F1 + TR * (k / 2 + 1) + 0.9, z - Math.sin(a) * 0.06)); }
+  groups.opb.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rp), 80, 0.022, 8), mat.hout));
 });
 
 // =====================================================================
@@ -721,17 +758,24 @@ F(8.0, 8.6, Y1, Y1 + 0.45, 2.2, 2.8, mat.stof); F(8.4, 8.6, Y1 + 0.45, Y1 + 0.9,
 bed(2.16, 3.66, 2.07, 2.84, Y1, [2.16, 3.66, 2.07, 2.84], 'x1');                               // voor
 F(0.82, 1.7, Y1, Y1 + 0.8, 0.05, 0.5, mat.donkerhout); F(1.08, 1.95, Y1, Y1 + 0.8, 2.6, 3.0, mat.donkerhout);
 
-// --- opbouw (inrichting uit het juli-model) ---
+// --- opbouw (BE-1: wasruimte, drie kamers; meubels zijn schaalobjecten) ---
 withTag('opb', () => {
   const Y2 = OPB;
-  bed(0.9, 3.0, 0.45, 2.15, Y2, [1.45, 3.0, 0.45, 2.15], 'x1');                               // slaapkamer 2
-  bed(5.88, 7.93, 1.75, 2.75, Y2, [6.5, 7.93, 1.75, 2.75], 'x2');                             // slaapkamer 1
-  F(4.0, 4.4, Y2, Y2 + 0.5, 2.4, 2.9, mat.wit);
-  tafel(6.48, 8.12, -2.72, -1.97, 0.78, mat.hout, Y2); stoel(7.3, -1.65, '+z', Y2, mat.zwart);  // werkplek
-  F(0.85, 1.45, Y2, Y2 + 0.85, -HB, -2.42, mat.wasm); F(1.55, 2.15, Y2, Y2 + 0.85, -HB, -2.42, mat.wasm); // was + droger
-  F(2.05, 2.45, Y2 + 0.75, Y2 + 0.85, -1.85, -1.4, mat.porselein);                            // wastafeltje
-  cyl(1.15, -2.41, 0.16, Y2 + 0.25, Y2 + 0.55, mat.zwart).rotation.x = Math.PI / 2;
-
+  // wasruimte: wasmachine + droger tegen de burenmuur, kast
+  F(XW1 - 0.057 - 1.22, XW1 - 0.057 - 0.62, Y2, Y2 + 0.85, -HB, -HB + 0.6, mat.wasm);
+  F(XW1 - 0.057 - 0.61, XW1 - 0.057 - 0.01, Y2, Y2 + 0.85, -HB, -HB + 0.6, mat.wasm);
+  for (const x of [XW1 - 0.057 - 0.92, XW1 - 0.057 - 0.31]) cyl(x, -HB + 0.61, 0.19, Y2 + 0.28, Y2 + 0.66, mat.zwart).rotation.x = Math.PI / 2;
+  F(XW1 - 0.65, XW1 - 0.06, Y2, Y2 + 2.0, ZD1 - 0.42, ZD1, mat.wit);
+  // kamer 1 (achter, burenzijde)
+  bed(XR - 0.24 - 2.05, XR - 0.29, -HB + 0.05, -HB + 0.95, Y2, [XR - 0.24 - 1.45, XR - 0.29, -HB + 0.05, -HB + 0.95], 'x2');
+  tafel(XW2 + 0.08, XW2 + 0.68, -HB + 0.1, -HB + 1.1, 0.75, mat.hout, Y2); stoel(XW2 + 0.93, -HB + 0.6, '+x', Y2, mat.zwart);
+  // kamer 3 (voor, straatzijde)
+  bed(XF + 0.4, XF + 2.4, ZS - 1.0, ZS - 0.05, Y2, [XF + 1.0, XF + 2.4, ZS - 1.0, ZS - 0.05], 'x1');
+  F(XSPL - 0.057 - 0.6, XSPL - 0.067, Y2, Y2 + 2.0, ZD2 + 1.0, ZD2 + 2.0, mat.wit);
+  // kamer 2 (achter, straatzijde)
+  bed(XR - 0.3 - 2.05, XR - 0.35, 0.95, 2.55, Y2, [XR - 0.3 - 1.45, XR - 0.35, 0.95, 2.55], 'x2');
+  F(XR - 0.9, XR - 0.5, Y2, Y2 + 0.5, 0.45, 0.88, mat.wit); F(XR - 0.9, XR - 0.5, Y2, Y2 + 0.5, 2.6, ZS - 0.02, mat.wit);
+  F(XSPL + 0.067, XSPL + 0.66, Y2, Y2 + 2.0, ZD2 + 1.4, ZS - 0.02, mat.wit);
 });
 
 // =====================================================================
@@ -839,7 +883,7 @@ function grondOp(x, z, y) {
 const geblokt = (x, z, y) => actSurfs.some(s => s.top > y + STEP && s.bot < y + BODY && inVlak(s, x, z));
 function duwUitMuren(x, z, y) {
   for (let it = 0; it < 3; it++) for (const w of actWalls) {
-    if (w.y2 <= y + 0.3 || w.y1 >= y + BODY) continue;
+    if (w.y2 <= y + STEP + 0.01 || w.y1 >= y + BODY) continue;
     if (x < w.x1 - RAD || x > w.x2 + RAD || z < w.z1 - RAD || z > w.z2 + RAD) continue;
     const cx = Math.max(w.x1, Math.min(x, w.x2)), cz = Math.max(w.z1, Math.min(z, w.z2));
     const dx = x - cx, dz = z - cz, d2 = dx * dx + dz * dz;
@@ -923,8 +967,7 @@ const RUIMTES = [
   [0, 'Hal', -1.0, 4.78, -HB, -0.83], [0, 'Berging', AB, -1.0, -HB, -1.4], [0, 'Portiek', AB - EXT, -1.0, -1.4, -0.1],
   [1, 'Badkamer', 0, 2.66, -HB, 0], [1, 'Overloop', 2.66, 4.63, -HB, 0], [1, 'Slaapkamer achter', 4.63, L, -HB, 0],
   [1, 'Slaapkamer voor', 0, 3.69, 0, HB], [1, 'Grote slaapkamer', 3.69, L, 0, HB],
-  [2, 'Wasruimte', 0, 2.5, -HB, -0.24], [2, 'Overloop', 2.5, 4.85, -HB, -0.24], [2, 'Werkplek', 4.85, L, -HB, -0.24],
-  [2, 'Slaapkamer 2', 0, 3.68, -0.24, HB], [2, 'Slaapkamer 1', 3.68, L, -0.24, HB],
+  ...RUIMTES_OPB.map(r => [2, ...r]),
 ];
 const LAGEN = ['Begane grond', 'Verdieping', 'Opbouw'];
 const laagVan = y => y < 1.6 ? 0 : y < ROOF - 0.3 ? 1 : 2;
@@ -934,7 +977,7 @@ function ruimteLabel() {
   let naam = null;
   for (const [l, n, x1, x2, z1, z2] of RUIMTES) if (l === lv && P.x >= x1 && P.x <= x2 && P.z >= z1 && P.z <= z2) { naam = n; break; }
   if (lv === 1 && P.x > 2.6 && P.x < 4.7 && P.z < -2.1 && P.y < F1 - 0.1) naam = 'Trap';
-  if (lv === 2 && Math.hypot(P.x - SC.x, P.z - SC.z) < SP_R && P.y < OPB - 0.1) naam = 'Spiltrap';
+  if (P.x > GAT_OPB[0] && P.x < GAT_OPB[1] && P.z < GAT_OPB[3] && P.y > F1 + 0.1 && P.y < OPB - 0.1) naam = 'Trap naar opbouw';
   let laag = LAGEN[lv];
   if (!naam) { laag = 'Buiten'; naam = P.x > L ? 'Achtertuin' : P.z > HB + EXT ? 'Straat' : P.x < -EXT ? 'Voortuin' : 'Buiten'; }
   const s = laag + '|' + naam;
@@ -969,7 +1012,7 @@ function tekenKaart() {
 }
 const PLEKKEN = {
   voordeur: [-4.6, 0, -0.75, -Math.PI / 2], woonkamer: [3.6, 0, 1.4, Math.PI / 2], keuken: [6.6, 0, 0.3, 0],
-  tuin: [L + 4.5, 0, 0.5, Math.PI / 2], overloop: [3.67, F1, -0.45, 0], opbouw: [6.0, OPB, 0.8, Math.PI / 2],
+  tuin: [L + 4.5, 0, 0.5, Math.PI / 2], overloop: [3.67, F1, -0.45, 0], opbouw: [XW2 - 0.5, OPB, -1.1, Math.PI / 2],
 };
 function ga(naam) {
   const [x, y, z, yaw] = PLEKKEN[naam];

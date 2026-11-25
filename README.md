@@ -20,8 +20,11 @@ grond, verdieping en opbouw. Bediening: WASD/pijltjes lopen, Shift rennen,
 spatie springen, slepen om rond te kijken, scrollen zoomen, **V** ooghoogte,
 **O** opbouw aan/uit. Op tablet/telefoon met joystick.
 
-Gebaseerd op de Funda-plattegronden, de Tevel-keukentekening en het eerdere
-3D-model (spiltrap boven het trapgat). De opbouw volgt dus nog níet BE-1 t/m BE-4.
+Bestaande woning naar de Funda-plattegronden en de Tevel-keukentekening; de
+opbouw volgt BE-1 t/m BE-4 met dezelfde maten als `src/config.js` (wasruimte,
+overloop, kamer 1–3, trap met draai boven het bestaande trapgat, 55°-dak met
+vier Velux-ramen, peilen verschoven naar het verdiepingspeil van dit model).
+De draaiverdeling van de trap is, net als in BE-1, schematisch.
 Laadt Three.js via jsDelivr, dus vereist internet.
 
 ## Gewijzigd
