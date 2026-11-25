@@ -12,6 +12,18 @@ Open `index.html`, of start `npm start` en ga naar http://localhost:4173.
 Geen build of externe CDN nodig. GitHub Pages gebruikt dezelfde bestanden.
 De publicatie op GitHub Pages volgt de wijzigingen op de hoofdbranch.
 
+## Rondlopen met een personage
+
+`wandelen.html` (online: https://rensmaljers.github.io/dakopbouw-3d/wandelen.html)
+is een losse doorloopversie van de woning: loop met een poppetje door begane
+grond, verdieping en opbouw. Bediening: WASD/pijltjes lopen, Shift rennen,
+spatie springen, slepen om rond te kijken, scrollen zoomen, **V** ooghoogte,
+**O** opbouw aan/uit. Op tablet/telefoon met joystick.
+
+Gebaseerd op de Funda-plattegronden, de Tevel-keukentekening en het eerdere
+3D-model (spiltrap boven het trapgat). De opbouw volgt dus nog níet BE-1 t/m BE-4.
+Laadt Three.js via jsDelivr, dus vereist internet.
+
 ## Gewijzigd
 
 - Drie afgesloten kamers, wasruimte en overloop volgens de gekozen BE-1-ketting.

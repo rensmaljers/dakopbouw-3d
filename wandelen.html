@@ -1,0 +1,1065 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Huis wandelen — Van Kleffenslaan 187</title>
+<style>
+  :root {
+    --paneel: rgba(38, 41, 46, 0.9);
+    --rand: #3A3E45;
+    --licht: #F5F2EA;
+    --dim: #A9ADB4;
+    --accent: #C9A87C;
+    --blauw: #6FA3D8;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; overflow: hidden; background: #CFDCE5; }
+  body { font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; color: var(--licht);
+         -webkit-user-select: none; user-select: none; touch-action: none; }
+  #view { position: fixed; inset: 0; cursor: grab; }
+  #view:active { cursor: grabbing; }
+  #view canvas { display: block; }
+  .kaart-ui { background: var(--paneel); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+              border: 1px solid var(--rand); border-radius: 14px; box-shadow: 0 10px 30px rgba(20,22,26,.28); }
+  #titel { position: fixed; top: 16px; left: 16px; padding: 12px 16px 13px; max-width: 300px; }
+  #titel .oog { font-size: 10.5px; font-weight: 700; letter-spacing: .14em; color: var(--accent); text-transform: uppercase; }
+  #titel h1 { margin: 3px 0 2px; font-size: 18px; letter-spacing: -.01em; }
+  #titel p { margin: 0; font-size: 12px; color: var(--dim); }
+  #kamer { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); padding: 8px 18px; text-align: center;
+           border-radius: 999px; white-space: nowrap; }
+  #kamer b { font-size: 15px; }
+  #kamer span { display: block; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+  #paneel { position: fixed; top: 16px; right: 16px; width: 236px; padding: 12px 14px 14px; }
+  #paneel .titel { font-size: 10.5px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; color: var(--dim); margin: 10px 0 7px; }
+  #paneel .titel:first-child { margin-top: 0; }
+  .knoppen { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .knoppen button, .wissel button { font: 600 12px/1 inherit; font-family: inherit; color: var(--licht); background: #33373D;
+           border: 1px solid var(--rand); border-radius: 9px; padding: 8px 6px; cursor: pointer; }
+  .knoppen button:hover, .wissel button:hover { background: #3C414A; }
+  .wissel { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .wissel button.actief { background: var(--accent); border-color: var(--accent); color: #23262B; }
+  button:focus-visible { outline: 2px solid var(--blauw); outline-offset: 1px; }
+  kbd { font: 600 10.5px/1 ui-monospace, Menlo, monospace; background: #3A3E45; border: 1px solid #4A4F57; border-bottom-width: 2px;
+        border-radius: 5px; padding: 2px 5px; color: var(--licht); }
+  #hulp { position: fixed; left: 16px; bottom: 16px; padding: 10px 14px; font-size: 12px; color: var(--dim); line-height: 1.9; }
+  #hulp b { color: var(--licht); font-weight: 600; }
+  #plattegrond { position: fixed; right: 16px; bottom: 16px; padding: 8px; }
+  #plattegrond canvas { display: block; width: 280px; height: 168px; }
+  #stick { position: fixed; left: 28px; bottom: 28px; width: 120px; height: 120px; border-radius: 50%;
+           background: rgba(38,41,46,.45); border: 1px solid rgba(255,255,255,.18); display: none; }
+  #stick i { position: absolute; left: 50%; top: 50%; width: 50px; height: 50px; margin: -25px 0 0 -25px; border-radius: 50%;
+             background: rgba(245,242,234,.85); }
+  body.touch #stick { display: block; }
+  body.touch #hulp { display: none; }
+  #paneel-knop { display: none; }
+  @media (max-width: 760px) {
+    #titel { display: none; }
+    #kamer { top: 12px; }
+    #paneel { top: 64px; right: 12px; width: 200px; padding: 10px; }
+    #paneel.dicht .inhoud { display: none; }
+    #paneel-knop { display: block; width: 100%; margin: 0; }
+    #plattegrond { right: 12px; bottom: 12px; }
+    #plattegrond canvas { width: 180px; height: 108px; }
+    #hulp { display: none; }
+  }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="view"></div>
+
+<div id="titel" class="kaart-ui">
+  <div class="oog">Van Kleffenslaan 187</div>
+  <h1>Loop door het huis</h1>
+  <p>Begane grond en verdieping naar de Funda-plattegronden, keuken naar de Tevel-tekening, opbouw naar het 3D-model van juli.</p>
+</div>
+
+<div id="kamer" class="kaart-ui"><span id="kamer-laag">Buiten</span><b id="kamer-naam">Voortuin</b></div>
+
+<div id="paneel" class="kaart-ui dicht">
+  <div class="wissel" style="grid-template-columns:1fr"><button id="paneel-knop">Menu</button></div>
+  <div class="inhoud">
+    <div class="titel">Situatie</div>
+    <div class="wissel">
+      <button id="sit-nu">Huidig</button>
+      <button id="sit-opbouw" class="actief">Met opbouw</button>
+    </div>
+    <div class="titel">Camera <kbd>V</kbd></div>
+    <div class="wissel">
+      <button id="cam-3" class="actief">Achter je</button>
+      <button id="cam-1">Ogen</button>
+    </div>
+    <div class="titel">Ga naar</div>
+    <div class="knoppen">
+      <button data-ga="voordeur">Voordeur</button>
+      <button data-ga="woonkamer">Woonkamer</button>
+      <button data-ga="keuken">Keuken</button>
+      <button data-ga="tuin">Tuin</button>
+      <button data-ga="overloop">Verdieping</button>
+      <button data-ga="opbouw" id="ga-opbouw">Opbouw</button>
+    </div>
+  </div>
+</div>
+
+<div id="hulp" class="kaart-ui">
+  <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> of pijltjes <b>lopen</b> &nbsp; <kbd>Shift</kbd> <b>rennen</b> &nbsp; <kbd>Spatie</kbd> <b>springen</b><br>
+  <b>Slepen</b> rondkijken &nbsp; <b>Scrollen</b> zoomen &nbsp; <kbd>O</kbd> opbouw aan/uit
+</div>
+
+<div id="plattegrond" class="kaart-ui"><canvas id="kaart" width="560" height="336"></canvas></div>
+<div id="stick"><i></i></div>
+
+<script type="module">
+import * as THREE from 'three';
+
+// ---------- maten (meters; x = voorgevel→achtergevel, z = buren(-) → straatzijde(+)) ----------
+const L = 8.84, HB = 3.045;                 // binnenmaat lengte, halve breedte
+const CEIL0 = 2.6, F1 = 2.88;               // plafond begane grond, vloer verdieping
+const CEIL1 = 5.38, ROOF = 5.48, OPB = 5.58; // plafond verdieping, dakrand, vloer opbouw
+const OPB_TOP = 8.30;                       // dakrand opbouw
+const STEP = 0.36, BODY = 1.75, RAD = 0.22;
+
+// ---------- renderer / scène ----------
+const view = document.getElementById('view');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+view.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xCFDCE5);
+scene.fog = new THREE.Fog(0xCFDCE5, 40, 90);
+const camera = new THREE.PerspectiveCamera(62, 1, 0.05, 200);
+
+scene.add(new THREE.HemisphereLight(0xEAF1F7, 0x8F8470, 1.25));
+scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+const sun = new THREE.DirectionalLight(0xFFF1DD, 2.1);
+sun.position.set(-4, 22, -15);
+sun.target.position.set(4.4, 0, 0);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -16, right: 16, top: 16, bottom: -16, near: 1, far: 60 });
+sun.shadow.bias = -0.0004;
+sun.shadow.normalBias = 0.03;
+scene.add(sun, sun.target);
+
+// ---------- textures (getekend op canvas, 1 tegel = `meter` meter) ----------
+function tex(px, meter, draw) {
+  const c = document.createElement('canvas'); c.width = c.height = px;
+  const g = c.getContext('2d'); draw(g, px);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  t.repeat.set(1 / meter, 1 / meter);
+  return t;
+}
+let seed = 7;
+const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+function shade(hex, amt) {
+  const n = parseInt(hex.slice(1), 16);
+  const k = (rnd() - 0.5) * amt;
+  const f = v => Math.max(0, Math.min(255, v + Math.round(k + (rnd() - 0.5) * amt * 0.2)));
+  return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})`;
+}
+function noise(g, s, base, amt, n = 6000, size = 2) {
+  g.fillStyle = base; g.fillRect(0, 0, s, s);
+  for (let i = 0; i < n; i++) { g.fillStyle = shade(base, amt); g.fillRect(rnd() * s, rnd() * s, size, size); }
+}
+const brick = (base, mortar) => tex(512, 1, (g, s) => {
+  g.fillStyle = mortar; g.fillRect(0, 0, s, s);
+  const ch = s / 16, bw = s / 4.5;
+  for (let r = 0; r < 16; r++) {
+    const off = (r % 2) * bw / 2;
+    for (let b = -1; b < 6; b++) {
+      g.fillStyle = shade(base, 26);
+      g.fillRect(off + b * bw + 3, r * ch + 3, bw - 6, ch - 6);
+    }
+  }
+});
+const T = {
+  grijs: brick('#77787A', '#B9B8B2'),
+  geel: brick('#C9A66B', '#E2D6BC'),
+  stuc: tex(256, 2, (g, s) => noise(g, s, '#F1EEE8', 8, 3000)),
+  visgraat: tex(512, 1.2, (g, s) => {
+    const C = 128, P = 64, cols = ['#B88B5A', '#A97C4D', '#C29767', '#9F7446', '#B5885A', '#AD8152', '#C69C6B', '#A67A4C'];
+    for (let ci = 0; ci < 4; ci++) {
+      const x0 = ci * C, sl = ci % 2 ? 1 : -1;
+      g.save(); g.beginPath(); g.rect(x0, 0, C, s); g.clip();
+      for (let k = -3; k < s / P + 3; k++) {
+        const y0 = k * P;
+        g.fillStyle = cols[((k % 8) + 8 + ci * 3) % 8];
+        g.beginPath();
+        g.moveTo(x0, y0); g.lineTo(x0 + C, y0 + sl * C); g.lineTo(x0 + C, y0 + sl * C + P); g.lineTo(x0, y0 + P);
+        g.closePath(); g.fill();
+        g.strokeStyle = 'rgba(60,40,20,.35)'; g.lineWidth = 2; g.stroke();
+      }
+      g.restore();
+    }
+  }),
+  laminaat: tex(512, 2, (g, s) => {
+    for (let r = 0; r < 8; r++) for (let b = -1; b < 3; b++) {
+      g.fillStyle = shade('#C8B9A2', 22);
+      const off = (r * 0.37 % 1) * s / 2;
+      g.fillRect(off + b * s / 2, r * s / 8, s / 2 - 2, s / 8 - 2);
+    }
+  }),
+  eiken: tex(512, 2, (g, s) => {
+    for (let r = 0; r < 8; r++) for (let b = -1; b < 3; b++) {
+      g.fillStyle = shade('#D9BF95', 20);
+      const off = (r * 0.61 % 1) * s / 2;
+      g.fillRect(off + b * s / 2, r * s / 8, s / 2 - 2, s / 8 - 2);
+    }
+  }),
+  tegel: tex(256, 0.6, (g, s) => {
+    g.fillStyle = '#9C9C98'; g.fillRect(0, 0, s, s);
+    for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) { g.fillStyle = shade('#BDBDB8', 10); g.fillRect(i * s / 2 + 2, j * s / 2 + 2, s / 2 - 4, s / 2 - 4); }
+  }),
+  gras: tex(256, 2, (g, s) => noise(g, s, '#7FA35A', 40, 9000, 2)),
+  stoep: tex(256, 1, (g, s) => {
+    g.fillStyle = '#A9A8A2'; g.fillRect(0, 0, s, s);
+    for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) { g.fillStyle = shade('#C9C7C0', 14); g.fillRect(i * s / 2 + 2, j * s / 2 + 2, s / 2 - 4, s / 2 - 4); }
+  }),
+  klinker: tex(256, 1, (g, s) => {
+    g.fillStyle = '#6E5A4E'; g.fillRect(0, 0, s, s);
+    for (let r = 0; r < 10; r++) for (let b = -1; b < 6; b++) { g.fillStyle = shade('#9A6F5C', 30); g.fillRect((r % 2) * 25 + b * 51 + 2, r * 25.6 + 2, 47, 22); }
+  }),
+  pan: tex(256, 1, (g, s) => {
+    g.fillStyle = '#2A2D31'; g.fillRect(0, 0, s, s);
+    for (let r = 0; r < 4; r++) for (let b = 0; b < 3; b++) { g.fillStyle = shade('#3A3E44', 14); g.fillRect(b * s / 3 + 2, r * s / 4 + 2, s / 3 - 4, s / 4 - 10); }
+  }),
+  grind: tex(256, 1, (g, s) => noise(g, s, '#8F8C86', 50, 9000, 3)),
+};
+
+// ---------- materialen ----------
+const M = (o) => new THREE.MeshStandardMaterial({ roughness: 0.9, metalness: 0, ...o });
+const mat = {
+  grijs: M({ map: T.grijs }), geel: M({ map: T.geel }), stuc: M({ map: T.stuc }), wit: M({ color: 0xF4F2EE, roughness: 0.6 }),
+  visgraat: M({ map: T.visgraat, roughness: 0.7 }), laminaat: M({ map: T.laminaat, roughness: 0.75 }), eiken: M({ map: T.eiken, roughness: 0.75 }),
+  tegel: M({ map: T.tegel, roughness: 0.4 }), gras: M({ map: T.gras, roughness: 1 }), stoep: M({ map: T.stoep }),
+  klinker: M({ map: T.klinker }), pan: M({ map: T.pan, roughness: 0.8 }), grind: M({ map: T.grind }),
+  plafond: M({ color: 0xFAF9F6 }), kozijn: M({ color: 0x2C3036, roughness: 0.5, metalness: 0.2 }), trim: M({ color: 0xF2F1EC, roughness: 0.6 }),
+  deur: M({ color: 0xF0EEE9, roughness: 0.5 }), voordeur: M({ color: 0x2E3440, roughness: 0.5 }),
+  glas: new THREE.MeshStandardMaterial({ color: 0xA8C2D2, roughness: 0.05, metalness: 0.2, transparent: true, opacity: 0.28, depthWrite: false }),
+  zwart: M({ color: 0x24272B, roughness: 0.55 }), blad: M({ color: 0xCFC6BA, roughness: 0.35 }), rvs: M({ color: 0x9A9C9E, metalness: 0.7, roughness: 0.3 }),
+  hout: M({ color: 0xB08A60, roughness: 0.7 }), donkerhout: M({ color: 0x5B4636, roughness: 0.7 }),
+  stof: M({ color: 0x585C63 }), stofLicht: M({ color: 0xB8B6B0 }), matras: M({ color: 0xEDEBE5 }), dekbed: M({ color: 0x45495A }),
+  porselein: M({ color: 0xFBFBFA, roughness: 0.25 }), plant: M({ color: 0x4F7A3A }), pot: M({ color: 0x5E6266 }),
+  hek: M({ color: 0x7A6450 }), haag: M({ color: 0x4E6E3A, roughness: 1 }), boom: M({ color: 0x5F8A45, roughness: 1 }), stam: M({ color: 0x5A4634 }),
+  wasm: M({ color: 0xF2F2F0, roughness: 0.4 }), zonnepaneel: M({ color: 0x182230, roughness: 0.25, metalness: 0.5 }),
+  gat: M({ color: 0x3A3D42 }),
+};
+
+// ---------- bouwhulpjes ----------
+// Elk object hoort bij een "tag": null (altijd), 'opb' (alleen met opbouw), 'nu' (alleen huidige situatie)
+const groups = { null: new THREE.Group(), opb: new THREE.Group(), nu: new THREE.Group() };
+Object.values(groups).forEach(g => scene.add(g));
+let TAG = null;
+const withTag = (t, fn) => { const p = TAG; TAG = t; fn(); TAG = p; };
+const walls = [];   // botsvlakken {x1,x2,z1,z2,y1,y2,tag}
+const surfs = [];   // beloopbare vlakken
+const camMeshes = [];
+
+function worldUV(g, w, h, d) {
+  const uv = g.attributes.uv;
+  const dims = [[d, h], [d, h], [w, d], [w, d], [w, h], [w, h]];
+  for (let f = 0; f < 6; f++) for (let v = 0; v < 4; v++) {
+    const i = f * 4 + v;
+    uv.setXY(i, uv.getX(i) * dims[f][0], uv.getY(i) * dims[f][1]);
+  }
+}
+function box(x1, x2, y1, y2, z1, z2, m, o = {}) {
+  const w = Math.abs(x2 - x1), h = Math.abs(y2 - y1), d = Math.abs(z2 - z1);
+  if (w < 1e-4 || h < 1e-4 || d < 1e-4) return null;
+  const g = new THREE.BoxGeometry(w, h, d); worldUV(g, w, h, d);
+  const mesh = new THREE.Mesh(g, m);
+  mesh.position.set((x1 + x2) / 2, (y1 + y2) / 2, (z1 + z2) / 2);
+  mesh.castShadow = o.shadow !== false; mesh.receiveShadow = true;
+  mesh.userData.tag = TAG;
+  groups[TAG].add(mesh);
+  if (o.cam !== false) camMeshes.push(mesh);
+  if (o.solid) solid(x1, x2, z1, z2, y1, y2);
+  return mesh;
+}
+const solid = (x1, x2, z1, z2, y1, y2) =>
+  walls.push({ x1: Math.min(x1, x2), x2: Math.max(x1, x2), z1: Math.min(z1, z2), z2: Math.max(z1, z2), y1, y2, tag: TAG });
+// beloopbare vlakken
+const rectSurf = (x1, x2, z1, z2, top, th = 0.1) => surfs.push({ k: 'r', x1, x2, z1, z2, top, bot: top - th, tag: TAG });
+const polySurf = (pts, top, th = 0.05) => surfs.push({ k: 'p', pts, top, bot: top - th, tag: TAG });
+const sectorSurf = (cx, cz, r0, r1, a0, a1, top, th = 0.05) => surfs.push({ k: 's', cx, cz, r0, r1, a0, a1, top, bot: top - th, tag: TAG });
+
+// Vloerplaat met (optioneel) gaten; maakt ook de beloopbare vlakken
+function slab(x1, x2, z1, z2, y1, y2, mTop, holes = [], walk = true) {
+  let rects = [[x1, x2, z1, z2]];
+  for (const [hx1, hx2, hz1, hz2] of holes) {
+    const out = [];
+    for (const [a1, a2, b1, b2] of rects) {
+      if (hx2 <= a1 || hx1 >= a2 || hz2 <= b1 || hz1 >= b2) { out.push([a1, a2, b1, b2]); continue; }
+      if (hz1 > b1) out.push([a1, a2, b1, hz1]);
+      if (hz2 < b2) out.push([a1, a2, hz2, b2]);
+      const zz1 = Math.max(b1, hz1), zz2 = Math.min(b2, hz2);
+      if (hx1 > a1) out.push([a1, hx1, zz1, zz2]);
+      if (hx2 < a2) out.push([hx2, a2, zz1, zz2]);
+    }
+    rects = out;
+  }
+  for (const [a1, a2, b1, b2] of rects) {
+    const m = box(a1, a2, y1, y2, b1, b2, [mat.trim, mat.trim, mTop, mat.plafond, mat.trim, mat.trim]);
+    if (walk) rectSurf(a1, a2, b1, b2, y2, y2 - y1);
+  }
+}
+
+// Wand langs een as met openingen. axis 'x': loopt langs x op z = c. axis 'z': loopt langs z op x = c.
+// m = materiaal of [kant-, kant+] (kant- = kleinere x/z-zijde). ops: {a,b,lo,hi,t:'deur'|'raam'|'gat', swing:±1, frame}
+function wall(axis, c, s1, s2, y1, y2, t, m, ops = []) {
+  const [mNeg, mPos] = Array.isArray(m) ? m : [m, m];
+  const faces = axis === 'x'
+    ? [mat.stuc, mat.stuc, mat.trim, mat.trim, mPos, mNeg]
+    : [mPos, mNeg, mat.trim, mat.trim, mat.stuc, mat.stuc];
+  if (axis === 'z') { faces[4] = faces[5] = mat.trim; }
+  if (axis === 'x') { faces[0] = faces[1] = mat.trim; }
+  const piece = (a, b, lo, hi, isSolid = true) => {
+    if (b - a < 1e-3 || hi - lo < 1e-3) return;
+    if (axis === 'x') box(a, b, lo, hi, c - t / 2, c + t / 2, faces, { solid: isSolid });
+    else box(c - t / 2, c + t / 2, lo, hi, a, b, faces, { solid: isSolid });
+  };
+  ops = [...ops].sort((p, q) => p.a - q.a);
+  let cur = s1;
+  for (const op of ops) {
+    piece(cur, op.a, y1, y2);
+    if (op.lo > y1) piece(op.a, op.b, y1, op.lo);
+    if (op.hi < y2) piece(op.a, op.b, op.hi, y2);
+    if (op.t === 'raam') opening(axis, c, t, op, op.frame || mat.kozijn, true);
+    if (op.t === 'deur') opening(axis, c, t, op, op.frame || mat.trim, false);
+    cur = op.b;
+  }
+  piece(cur, s2, y1, y2);
+}
+function opening(axis, c, t, op, fm, glass) {
+  const f = 0.06, { a, b, lo, hi } = op;
+  const B = (s1, s2, ya, yb, n1, n2, m, o) => axis === 'x' ? box(s1, s2, ya, yb, n1, n2, m, o) : box(n1, n2, ya, yb, s1, s2, m, o);
+  const n1 = c - t / 2 - 0.005, n2 = c + t / 2 + 0.005;
+  B(a, a + f, lo, hi, n1, n2, fm, { cam: false }); B(b - f, b, lo, hi, n1, n2, fm, { cam: false });
+  B(a, b, hi - f, hi, n1, n2, fm, { cam: false });
+  if (glass) {
+    B(a, b, lo, lo + f, n1, n2, fm, { cam: false });
+    for (const mid of (op.stijl || [])) B(mid - f / 2, mid + f / 2, lo, hi, n1, n2, fm, { cam: false });
+    B(a + f, b - f, lo + f, hi - f, c - 0.01, c + 0.01, mat.glas, { cam: false, shadow: false });
+    if (axis === 'x') solid(a, b, c - t / 2, c + t / 2, lo, hi); else solid(c - t / 2, c + t / 2, a, b, lo, hi);
+  } else if (op.swing) {
+    // openstaand deurblad, scharnier bij a
+    const w = b - a - 2 * f, s = op.swing, dm = op.blad || mat.deur, n0 = s > 0 ? c + t / 2 : c - t / 2;
+    if (axis === 'x') box(a + f, a + f + 0.04, lo, hi - f, n0, n0 + s * w, dm);
+    else box(n0, n0 + s * w, lo, hi - f, a + f, a + f + 0.04, dm);
+  }
+}
+const deur = (a, b, swing = 1, lo = 0, extra = {}) => ({ a, b, lo, hi: lo + 2.1, t: 'deur', swing, ...extra });
+const raam = (a, b, lo, hi, extra = {}) => ({ a, b, lo, hi, t: 'raam', ...extra });
+
+// =====================================================================
+// BEGANE GROND + GEVELS
+// =====================================================================
+const EXT = 0.3, IW = 0.1;            // gevel- en binnenwanddikte
+const BAND = 2.7;                     // overgang grijs → geel metselwerk
+
+// --- gevels hoofdblok (grijs beneden, geel boven, witte banden) ---
+// voorgevel x = 0 (buitenkant -x). Begane grond alleen bij woonkamer (rest zit achter de aanbouw)
+wall('z', -EXT / 2, -0.2, HB, 0, BAND, EXT, [mat.grijs, mat.stuc], [raam(0.3, 2.6, 0.62, 2.38, { stijl: [1.45] })]);
+wall('z', -EXT / 2, -0.2, HB, BAND, F1, EXT, [mat.grijs, mat.stuc]);
+wall('z', -EXT / 2, -HB, -0.2, 0, F1, EXT, mat.stuc, [{ a: -2.08, b: -0.83, lo: 0, hi: 2.3, t: 'gat' }]); // achter aanbouw: binnenmuur met doorgang entree → hal
+wall('z', -EXT / 2, -HB - EXT, HB + EXT, F1, ROOF, EXT, [mat.geel, mat.stuc], [
+  raam(-1.95, -0.9, F1 + 1.15, F1 + 2.05), raam(0.45, 2.35, F1 + 0.85, F1 + 2.1, { stijl: [1.3] })]);
+// achtergevel x = L (buitenkant +x): schuifpui + deur
+wall('z', L + EXT / 2, -HB, HB, 0, BAND, EXT, [mat.stuc, mat.grijs], [
+  raam(-1.2, 2.6, 0.02, 2.4, { stijl: [0.7] }),
+  deur(-2.2, -1.2, -1, 0.02, { hi: 2.4, frame: mat.kozijn, blad: mat.kozijn })]);
+wall('z', L + EXT / 2, -HB, HB, BAND, F1, EXT, [mat.stuc, mat.grijs]);
+wall('z', L + EXT / 2, -HB - EXT, HB + EXT, F1, ROOF, EXT, [mat.stuc, mat.geel], [
+  raam(-2.15, -1.1, F1 + 0.9, F1 + 2.1), raam(0.45, 2.35, F1 + 0.85, F1 + 2.1, { stijl: [1.4] })]);
+// zijgevel straatzijde z = +HB (dicht)
+wall('x', HB + EXT / 2, -EXT, L + EXT, 0, BAND, EXT, [mat.stuc, mat.grijs]);
+wall('x', HB + EXT / 2, -EXT, L + EXT, BAND, ROOF, EXT, [mat.stuc, mat.geel]);
+// woningscheidende wand z = -HB
+wall('x', -HB - EXT / 2, -EXT, L + EXT, 0, ROOF, EXT, [mat.geel, mat.stuc]);
+// witte banden + dakrand
+box(-EXT - 0.04, L + EXT + 0.04, BAND, BAND + 0.24, HB + EXT - 0.01, HB + EXT + 0.04, mat.trim);
+box(L + EXT - 0.01, L + EXT + 0.04, BAND, BAND + 0.24, -HB, HB + EXT + 0.04, mat.trim);
+box(-EXT - 0.04, -EXT + 0.01, BAND, BAND + 0.24, -0.2, HB + EXT + 0.04, mat.trim);
+// zonnescherm-kast boven de pui
+box(L + EXT, L + EXT + 0.32, 2.45, 2.65, -2.4, 2.8, mat.kozijn);
+// dakrand hoofdblok (alleen zichtbaar zonder opbouw is het dak; trim altijd)
+for (const [x1, x2, z1, z2] of [[-EXT - 0.04, L + EXT + 0.04, HB + EXT - 0.02, HB + EXT + 0.04], [-EXT - 0.04, L + EXT + 0.04, -HB - EXT - 0.04, -HB - EXT + 0.02],
+  [-EXT - 0.04, -EXT + 0.02, -HB - EXT, HB + EXT], [L + EXT - 0.02, L + EXT + 0.04, -HB - EXT, HB + EXT]]) box(x1, x2, ROOF - 0.34, ROOF + 0.04, z1, z2, mat.trim);
+
+// --- aanbouw voor: berging + portiek + entree ---
+const AB = -3.3, AH = 2.67;  // voorkant berging (binnen), hoogte aanbouw
+wall('z', AB - EXT / 2, -HB - EXT, -1.4, 0, AH, EXT, [mat.grijs, mat.stuc]);                 // voorgevel berging
+wall('x', -1.4 - IW, AB - EXT, -1.0, 0, AH, 0.2, [mat.stuc, mat.grijs], [deur(-2.9, -2.1, 1, 0, { frame: mat.kozijn, blad: mat.voordeur })]);
+wall('z', -1.0, -HB, -0.2, 0, AH, 0.2, [mat.grijs, mat.stuc], [
+  deur(-1.25, -0.35, 1, 0, { frame: mat.kozijn, blad: mat.voordeur, hi: 2.3 })]);              // voordeur (portiek → entree)
+wall('x', -0.1, -1.1, 0, 0, AH, 0.2, [mat.stuc, mat.grijs]);                                   // entree zijmuur naar tuinpad
+wall('x', -HB - EXT / 2, AB - EXT, 0, 0, AH, EXT, [mat.grijs, mat.stuc]);                      // scheiding met buren
+box(AB - EXT - 0.05, 0, AH, AH + 0.25, -HB - EXT, 0.05, mat.trim);                            // dak + witte rand aanbouw
+box(AB - EXT - 0.02, -0.02, AH + 0.25, AH + 0.27, -HB - EXT + 0.05, 0.02, mat.grind, { shadow: false });
+box(AB - EXT, -1.0, AH - 0.02, AH, -1.4, -0.1, mat.plafond, { shadow: false });              // plafond portiek
+box(AB - EXT, AB - EXT + 0.2, 0, AH, -1.45, -1.25, mat.grijs, { solid: true });                // hoekpenant portiek
+
+// --- vloeren begane grond ---
+box(-1.0, L, -0.02, 0, -HB, HB, mat.visgraat, { cam: false });
+box(AB, -1.0, -0.02, 0.002, -HB, -1.4, mat.tegel, { cam: false });
+box(-1.0, 0, -0.02, 0.001, -2.08, -0.2, mat.tegel, { cam: false });
+box(AB - EXT, -1.0, -0.05, 0.05, -1.4, -0.1, mat.stoep, { cam: false });
+
+// --- binnenwanden begane grond (y 0 → CEIL0) ---
+const W0 = (axis, c, s1, s2, ops) => wall(axis, c, s1, s2, 0, CEIL0, IW, mat.stuc, ops);
+W0('x', -2.08, -0.9, -0.3, [deur(-0.85, -0.35, 1)]);      // meterkast
+W0('x', -2.08, 0, 1.39);                                 // toilet zuid
+W0('z', 1.39, -HB, -2.08, [deur(-2.95, -2.2, 1)]);         // toilet deur naar hal
+W0('x', -0.83, 0, 4.78, [deur(2.5, 3.35, 1)]);             // hal | woonkamer
+W0('z', 3.43, -2.08, -0.83, [deur(-1.95, -1.25, -1)]);     // trapkast
+W0('x', -2.08, 3.43, 4.78);
+W0('z', 4.78, -HB, -0.83);                                 // keukenwand (achter trap + kast)
+
+// plafond begane grond = vloer verdieping (gat voor trap)
+const TRAPGAT1 = [2.66, 4.63, -HB, -2.1];
+slab(-0.15, L, -HB, HB, CEIL0, F1, mat.laminaat, [TRAPGAT1]);
+box(-1.0, -0.15, CEIL0, CEIL0 + 0.02, -HB, -0.2, mat.plafond, { shadow: false }); // plafond entree
+box(AB, -1.0, CEIL0, CEIL0 + 0.02, -HB, -1.4, mat.plafond, { shadow: false });
+
+// --- trap begane grond → verdieping: 5 rechte treden + 8 spiltreden om (3.75,-2.1) ---
+{
+  const N = 14, R = F1 / N, PX = 3.75, PZ = -2.1;
+  for (let k = 0; k < 5; k++) {
+    const x1 = 2.70 + 0.21 * k, top = R * (k + 1);
+    box(x1, x1 + 0.23, top - 0.05, top, -3.02, -2.1, mat.hout);
+    box(x1, x1 + 0.02, top - R, top - 0.05, -3.02, -2.1, mat.wit, { cam: false });
+    rectSurf(x1, x1 + 0.21, -3.045, -2.1, top, 0.05);
+  }
+  const ex = 4.63 - PX, ez = PZ + HB;   // rechthoek dx ∈ [0,ex], dz ∈ [-ez,0]
+  const rim = a => { const c = Math.cos(a), s = Math.sin(a);
+    let t = 1e9; if (c > 1e-6) t = Math.min(t, ex / c); if (s < -1e-6) t = Math.min(t, ez / -s); return [PX + c * t, PZ + s * t]; };
+  const corner = Math.atan2(-ez, ex);
+  for (let j = 0; j < 8; j++) {
+    const a1 = -Math.PI / 2 + j * Math.PI / 16, a2 = a1 + Math.PI / 16, top = R * (j + 6);
+    const pts = [[PX, PZ], rim(a1)];
+    if (a1 < corner && a2 > corner) pts.push([PX + ex, PZ - ez]);
+    pts.push(rim(a2));
+    polySurf(pts, top);
+    const sh = new THREE.Shape(pts.map(([x, z]) => new THREE.Vector2(x, -z)));
+    const g = new THREE.ExtrudeGeometry(sh, { depth: 0.05, bevelEnabled: false });
+    g.rotateX(-Math.PI / 2);
+    const m = new THREE.Mesh(g, mat.hout);
+    m.position.y = top - 0.05; m.castShadow = m.receiveShadow = true;
+    groups[TAG].add(m); camMeshes.push(m);
+  }
+  // trapbomen / leuning
+  box(2.66, 4.63, 0, F1, -HB, -HB + 0.03, mat.wit, { cam: false });
+  box(4.63, 4.78, 0, F1, -HB, -2.08, mat.wit, { solid: true });
+  const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 3.2, 10), mat.hout);
+  rail.position.set(3.4, 1.55, -3.0); rail.rotation.z = Math.PI / 2 - Math.atan2(F1 * 0.55, 2.2);
+  groups[null].add(rail);
+}
+
+// =====================================================================
+// VERDIEPING (Funda-plattegrond boven)
+// =====================================================================
+const W1 = (axis, c, s1, s2, ops) => wall(axis, c, s1, s2, F1, CEIL1, IW, mat.stuc, ops);
+const D1 = (a, b, s) => deur(a, b, s, F1);
+W1('z', 2.66, -HB, 0, [D1(-0.95, -0.15, -1)]);              // badkamer | overloop
+W1('z', 4.63, -HB, 0, [D1(-1.3, -0.5, 1)]);                 // overloop | slaapkamer achter
+W1('x', 0, 0, L, [D1(2.75, 3.55, 1), D1(3.8, 4.6, 1)]);     // gang | slaapkamers zuid
+W1('z', 3.69, 0, HB);                                       // tussen slaapkamers zuid
+box(-0.15, 2.61, F1, F1 + 0.012, -HB, -0.05, mat.tegel, { cam: false, shadow: false });  // badkamertegels
+// balustrade langs het trapgat
+box(2.66, 3.72, F1 + 0.86, F1 + 0.92, -2.13, -2.07, mat.hout, { solid: true });
+solid(2.66, 3.72, -2.13, -2.07, F1, F1 + 0.9);
+for (let x = 2.8; x < 3.72; x += 0.12) box(x, x + 0.025, F1, F1 + 0.86, -2.11, -2.09, mat.wit, { cam: false });
+
+// =====================================================================
+// DAK — huidige situatie (plat dak met zonnepanelen)
+// =====================================================================
+withTag('nu', () => {
+  box(-EXT, L + EXT, CEIL1, ROOF - 0.02, -HB - EXT, HB + EXT, [mat.trim, mat.trim, mat.grind, mat.plafond, mat.trim, mat.trim]);
+  for (const x of [2.2, 4.0, 5.8]) for (const z of [-1.9, 0, 1.9])
+    box(x - 0.85, x + 0.85, ROOF + 0.15, ROOF + 0.2, z - 0.5, z + 0.5, mat.zonnepaneel);
+});
+
+// =====================================================================
+// OPBOUW (naar 3D-model juli: mansarde voor/achter, gemetselde kopgevels, spiltrap)
+// =====================================================================
+const SC = { x: 3.7, z: -2.0 }, SP_R = 0.85;                 // spiltrap
+const SP_N = 14, SP_RISE = (OPB - F1) / SP_N, SP_A0 = 60, SP_DA = 24;
+const GAT_OPB = [2.85, 4.55, -2.85, -1.15];
+const BX1 = 0.2, BX2 = L - 0.2, BORST = ROOF + 1.12;          // buitenkant borstwering
+const IX1 = 0.36, IX2 = L - 0.36, PLAF2 = 8.1;
+const hProfile = x => Math.min(PLAF2, BORST + (x - IX1) * 1.5 / 1.34, BORST + (IX2 - x) * 1.5 / 1.34);
+
+const stucDS = M({ map: T.stuc, side: THREE.DoubleSide });
+withTag('opb', () => {
+  // plafond verdieping met gat + vloer opbouw met gat
+  slab(-EXT, L + EXT, -HB - EXT, HB + EXT, CEIL1, ROOF - 0.1, mat.plafond, [GAT_OPB], false);
+  slab(-EXT, L + EXT, -HB - EXT, HB + EXT, ROOF - 0.1, OPB, mat.eiken, [GAT_OPB]);
+  box(3.75, 4.55, OPB - 0.1, OPB, -2.0, -1.15, mat.eiken); rectSurf(3.75, 4.55, -2.0, -1.15, OPB);
+  // gat in het plafond van de verdieping (gat in de dunne plafondplaat tekenen we als donkere rand)
+  // borstweringen
+  box(BX1, IX1, ROOF, BORST, -HB - EXT, HB + EXT, [mat.stuc, mat.pan, mat.trim, mat.trim, mat.trim, mat.trim], { solid: true });
+  box(IX2, BX2, ROOF, BORST, -HB - EXT, HB + EXT, [mat.pan, mat.stuc, mat.trim, mat.trim, mat.trim, mat.trim], { solid: true });
+  // schuine dakvlakken
+  const run = 1.35, rise = OPB_TOP - BORST, len = Math.hypot(run, rise), ang = Math.atan2(rise, run);
+  for (const front of [true, false]) {
+    const g = new THREE.BoxGeometry(len + 0.1, 0.2, 2 * (HB + EXT)); worldUV(g, len + 0.1, 0.2, 2 * (HB + EXT));
+    const m = new THREE.Mesh(g, [mat.trim, mat.trim, mat.pan, mat.stuc, mat.trim, mat.trim]);
+    const mx = front ? BX1 + run / 2 : BX2 - run / 2, nx = front ? 0.1 * Math.sin(ang) : -0.1 * Math.sin(ang);
+    m.position.set(mx + nx, (BORST + OPB_TOP) / 2 - 0.1 * Math.cos(ang), 0);
+    m.rotation.z = front ? ang : -ang;
+    m.castShadow = m.receiveShadow = true; groups.opb.add(m); camMeshes.push(m);
+    m.userData.tag = 'opb';
+    // twee dakramen per dakvlak
+    for (const z of [-1.45, 1.45]) {
+      const v = new THREE.Group();
+      v.add(new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.1, 1.1), mat.kozijn));
+      const gl = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.11, 0.95), mat.glas); v.add(gl);
+      v.position.set(mx + (front ? 0.05 : -0.05), (BORST + OPB_TOP) / 2 + 0.03, z);
+      v.rotation.z = front ? ang : -ang;
+      groups.opb.add(v);
+    }
+  }
+  box(BX1 + run - 0.05, BX2 - run + 0.05, PLAF2, OPB_TOP, -HB - EXT, HB + EXT, [mat.trim, mat.trim, mat.grind, mat.plafond, mat.trim, mat.trim]);
+  box(BX1 + run - 0.1, BX2 - run + 0.1, OPB_TOP - 0.25, OPB_TOP + 0.02, -HB - EXT - 0.04, -HB - EXT + 0.02, mat.trim);
+  box(BX1 + run - 0.1, BX2 - run + 0.1, OPB_TOP - 0.25, OPB_TOP + 0.02, HB + EXT - 0.02, HB + EXT + 0.04, mat.trim);
+  for (const x of [2.6, 4.42, 6.24]) for (const z of [-1.83, 0, 1.83]) {
+    const p = box(x - 0.5, x + 0.5, OPB_TOP + 0.12, OPB_TOP + 0.16, z - 0.85, z + 0.85, mat.zonnepaneel);
+    p.rotation.z = -0.2;
+  }
+  // gemetselde kopgevels (straatzijde + burenzijde)
+  const prof = [[BX1, ROOF], [BX1, BORST], [BX1 + run, OPB_TOP], [BX2 - run, OPB_TOP], [BX2, BORST], [BX2, ROOF]];
+  const shape = new THREE.Shape(prof.map(([x, y]) => new THREE.Vector2(x, y)));
+  for (const zs of [HB, -HB - EXT]) {
+    const g = new THREE.ExtrudeGeometry(shape, { depth: EXT, bevelEnabled: false });
+    const m = new THREE.Mesh(g, mat.geel); m.position.z = zs; m.castShadow = m.receiveShadow = true;
+    groups.opb.add(m); camMeshes.push(m); m.userData.tag = 'opb';
+    const ip = new THREE.Mesh(new THREE.ShapeGeometry(shape), mat.stuc);
+    ip.position.z = zs > 0 ? zs - 0.005 : zs + EXT + 0.005;
+    ip.material = stucDS; groups.opb.add(ip);
+  }
+  solid(0, L, HB, HB + EXT, ROOF, OPB_TOP); solid(0, L, -HB - EXT, -HB, ROOF, OPB_TOP);
+  solid(0, 0.95, -HB, HB, OPB + 0.4, OPB_TOP); solid(L - 0.95, L, -HB, HB, OPB + 0.4, OPB_TOP); // schuine wand op hoofdhoogte
+
+  // binnenwanden opbouw
+  const WO = (axis, c, s1, s2, ops) => wall(axis, c, s1, s2, OPB, PLAF2, IW, mat.stuc, ops);
+  WO('z', 2.5, -HB, -0.24, [deur(-1.35, -0.55, -1, OPB)]);       // wasruimte
+  WO('z', 4.85, -HB, -0.24, [deur(-1.35, -0.55, 1, OPB)]);       // werkplek
+  WO('z', 3.68, -0.24, HB);                                       // tussen slaapkamers
+  // wand langs x (z = -0.24) volgt het dakprofiel
+  const segs = [[IX1, 2.7], [3.5, 3.85], [4.65, IX2]];
+  for (const [a, b] of segs) {
+    const pts = [[a, OPB], [b, OPB], [b, hProfile(b)]];
+    const top = [];
+    for (let x = b; x >= a - 1e-6; x -= Math.min(0.25, b - a)) top.push([x, hProfile(x)]);
+    top.push([a, hProfile(a)]);
+    const sh = new THREE.Shape([[a, OPB], [b, OPB], ...top].map(([x, y]) => new THREE.Vector2(x, y)));
+    const g = new THREE.ExtrudeGeometry(sh, { depth: IW, bevelEnabled: false });
+    const m = new THREE.Mesh(g, mat.stuc); m.position.z = -0.24 - IW / 2; m.castShadow = m.receiveShadow = true;
+    groups.opb.add(m); camMeshes.push(m); m.userData.tag = 'opb';
+    solid(a, b, -0.29, -0.19, OPB, PLAF2);
+  }
+  for (const [a, b] of [[2.7, 3.5], [3.85, 4.65]]) {
+    box(a, b, OPB + 2.1, PLAF2, -0.29, -0.19, mat.stuc);
+    opening('x', -0.24, IW, deur(a, b, 1, OPB), mat.trim, false);
+  }
+
+  // balustrade rond het trapgat
+  const R = (x1, x2, z1, z2) => {
+    box(x1, x2, OPB + 0.95, OPB + 1.0, z1, z2, mat.hout, { solid: false });
+    solid(x1, x2, z1, z2, OPB, OPB + 1.0);
+    const n = Math.max(2, Math.round(Math.max(x2 - x1, z2 - z1) / 0.12));
+    for (let i = 0; i <= n; i++) {
+      const t = i / n, x = x1 + (x2 - x1) * t, z = z1 + (z2 - z1) * t;
+      box(x - 0.012, x + 0.012, OPB, OPB + 0.95, z - 0.012, z + 0.012, mat.wit, { cam: false });
+    }
+  };
+  R(2.83, 2.87, -2.85, -1.15); R(2.85, 4.55, -2.87, -2.83); R(4.53, 4.57, -2.85, -2.0);
+  R(2.85, 3.75, -1.17, -1.13); R(3.73, 3.77, -2.0, -1.15);
+
+  // spiltrap verdieping → opbouw
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, OPB + 1.0 - F1, 16), mat.wit);
+  post.position.set(SC.x, (F1 + OPB + 1.0) / 2, SC.z); post.castShadow = true; groups.opb.add(post);
+  solid(SC.x - 0.06, SC.x + 0.06, SC.z - 0.06, SC.z + 0.06, F1, OPB + 1);
+  const d2r = Math.PI / 180, hw = SP_DA / 2 * d2r, r0 = 0.07;
+  const tread = new THREE.Shape();
+  tread.moveTo(Math.cos(-hw) * r0, Math.sin(-hw) * r0);
+  tread.lineTo(Math.cos(-hw) * SP_R, Math.sin(-hw) * SP_R);
+  tread.absarc(0, 0, SP_R, -hw, hw, false);
+  tread.lineTo(Math.cos(hw) * r0, Math.sin(hw) * r0);
+  tread.absarc(0, 0, r0, hw, -hw, true);
+  const tg = new THREE.ExtrudeGeometry(tread, { depth: 0.05, bevelEnabled: false, curveSegments: 6 });
+  tg.rotateX(Math.PI / 2);   // shape (x, y) → wereld (x, -, y): y van de vorm wordt +z
+  const railPts = [];
+  for (let k = 0; k < SP_N - 1; k++) {
+    const th = (SP_A0 + SP_DA * k) * d2r, top = F1 + SP_RISE * (k + 1);
+    const m = new THREE.Mesh(tg, mat.hout);
+    m.position.set(SC.x, top, SC.z); m.rotation.y = -th;
+    m.castShadow = m.receiveShadow = true; groups.opb.add(m); camMeshes.push(m); m.userData.tag = 'opb';
+    sectorSurf(SC.x, SC.z, r0, SP_R + 0.02, th - hw, th + hw, top);
+    const bx = SC.x + Math.cos(th) * (SP_R - 0.03), bz = SC.z + Math.sin(th) * (SP_R - 0.03);
+    box(bx - 0.012, bx + 0.012, top, top + 0.9, bz - 0.012, bz + 0.012, mat.wit, { cam: false });
+    railPts.push(new THREE.Vector3(bx, top + 0.9, bz));
+    if (k >= 2) solid(bx - 0.07, bx + 0.07, bz - 0.07, bz + 0.07, top, top + 0.95);
+  }
+  const rail = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(railPts), 80, 0.022, 8), mat.hout);
+  groups.opb.add(rail);
+});
+
+// =====================================================================
+// INRICHTING
+// =====================================================================
+const F = (x1, x2, y1, y2, z1, z2, m, s = true) => box(x1, x2, y1, y2, z1, z2, m, { cam: false, solid: s });
+function cyl(x, z, r, y1, y2, m, seg = 16) {
+  const c = new THREE.Mesh(new THREE.CylinderGeometry(r, r, y2 - y1, seg), m);
+  c.position.set(x, (y1 + y2) / 2, z); c.castShadow = c.receiveShadow = true; groups[TAG].add(c); return c;
+}
+function bol(x, y, z, r, m) {
+  const s = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 12), m);
+  s.position.set(x, y, z); s.castShadow = true; groups[TAG].add(s); return s;
+}
+function plant(x, z, y0 = 0, h = 1.2) {
+  cyl(x, z, 0.2, y0, y0 + 0.4, mat.pot);
+  for (let i = 0; i < 5; i++) bol(x + Math.cos(i * 1.3) * 0.12, y0 + 0.55 + i * h * 0.12, z + Math.sin(i * 1.3) * 0.12, 0.22 - i * 0.02, mat.plant);
+  solid(x - 0.2, x + 0.2, z - 0.2, z + 0.2, y0, y0 + 1);
+}
+function stoel(x, z, rot, y0 = 0, m = mat.stofLicht) {   // rot: richting van de rugleuning (+x, -x, +z, -z)
+  F(x - 0.22, x + 0.22, y0 + 0.42, y0 + 0.47, z - 0.22, z + 0.22, m, false);
+  const [bx, bz] = { '+x': [0.2, 0], '-x': [-0.2, 0], '+z': [0, 0.2], '-z': [0, -0.2] }[rot];
+  F(x + bx - (bz ? 0.22 : 0.025), x + bx + (bz ? 0.22 : 0.025), y0 + 0.47, y0 + 0.9, z + bz - (bx ? 0.22 : 0.025), z + bz + (bx ? 0.22 : 0.025), m, false);
+  for (const [dx, dz] of [[-0.18, -0.18], [0.18, -0.18], [-0.18, 0.18], [0.18, 0.18]]) cyl(x + dx, z + dz, 0.015, y0, y0 + 0.42, mat.zwart, 6);
+  solid(x - 0.22, x + 0.22, z - 0.22, z + 0.22, y0, y0 + 0.9);
+}
+function tafel(x1, x2, z1, z2, h, m, y0 = 0) {
+  F(x1, x2, y0 + h - 0.04, y0 + h, z1, z2, m, false);
+  for (const [x, z] of [[x1 + 0.06, z1 + 0.06], [x2 - 0.06, z1 + 0.06], [x1 + 0.06, z2 - 0.06], [x2 - 0.06, z2 - 0.06]]) cyl(x, z, 0.025, y0, y0 + h - 0.04, mat.zwart, 8);
+  solid(x1, x2, z1, z2, y0, y0 + h);
+}
+function bed(x1, x2, z1, z2, y0, dekbedVanaf, kussensBij) {  // kussensBij: 'z1'|'z2'|'x1'|'x2'
+  F(x1, x2, y0 + 0.08, y0 + 0.4, z1, z2, mat.hout);
+  F(x1 + 0.03, x2 - 0.03, y0 + 0.4, y0 + 0.56, z1 + 0.03, z2 - 0.03, mat.matras, false);
+  const [a1, a2, b1, b2] = dekbedVanaf; F(a1, a2, y0 + 0.56, y0 + 0.62, b1, b2, mat.dekbed, false);
+  const along = kussensBij[0] === 'z';
+  const n = (along ? x2 - x1 : z2 - z1) > 1.2 ? 2 : 1;
+  for (let i = 0; i < n; i++) {
+    const t1 = i / n, t2 = (i + 1) / n;
+    if (along) { const z = kussensBij === 'z1' ? z1 + 0.12 : z2 - 0.42; F(x1 + (x2 - x1) * t1 + 0.08, x1 + (x2 - x1) * t2 - 0.08, y0 + 0.56, y0 + 0.68, z, z + 0.3, mat.porselein, false); }
+    else { const x = kussensBij === 'x1' ? x1 + 0.12 : x2 - 0.42; F(x, x + 0.3, y0 + 0.56, y0 + 0.68, z1 + (z2 - z1) * t1 + 0.08, z1 + (z2 - z1) * t2 - 0.08, mat.porselein, false); }
+  }
+}
+
+// --- woonkamer ---
+F(0.17, 0.95, 0.08, 0.45, 0.34, 2.5, mat.stof);                 // bank
+F(0.17, 0.38, 0.45, 0.88, 0.34, 2.5, mat.stof, false);
+F(0.17, 0.95, 0.45, 0.62, 0.34, 0.5, mat.stof, false); F(0.17, 0.95, 0.45, 0.62, 2.34, 2.5, mat.stof, false);
+F(1.05, 2.75, 0, 0.012, 0.45, 2.3, mat.stofLicht, false);        // vloerkleed
+F(1.38, 2.34, 0.36, 0.41, 0.85, 1.8, mat.zwart); F(1.5, 2.22, 0, 0.36, 0.97, 1.68, mat.zwart, false);
+for (const z of [0.32, 1.29]) {                                  // fauteuils
+  F(2.8, 3.6, 0.08, 0.42, z, z + 0.83, mat.stofLicht);
+  F(3.4, 3.6, 0.42, 0.85, z, z + 0.83, mat.stofLicht, false);
+  F(2.8, 3.6, 0.42, 0.6, z, z + 0.1, mat.stofLicht, false); F(2.8, 3.6, 0.42, 0.6, z + 0.73, z + 0.83, mat.stofLicht, false);
+}
+F(1.17, 2.57, 0, 0.5, 2.63, 3.03, mat.hout);                      // tv-meubel + tv
+F(1.35, 2.4, 0.78, 1.38, 2.96, 3.0, mat.zwart, false);
+tafel(5.9, 7.72, 0.62, 1.48, 0.76, mat.donkerhout);               // eettafel + 6 stoelen
+for (const x of [6.25, 6.81, 7.37]) { stoel(x, 0.38, '-z'); stoel(x, 1.72, '+z'); }
+F(5.93, 7.65, 0, 0.8, 2.65, 3.03, mat.donkerhout);                // dressoir
+plant(0.45, -0.4);
+plant(8.5, 2.7);
+
+// --- keuken (Tevel 6540) ---
+F(4.84, L, 0, 0.1, -HB, -2.42, mat.zwart);
+F(4.84, L, 0.1, 0.86, -HB, -2.45, mat.zwart);
+F(4.84, L, 0.86, 0.9, -HB, -2.4, mat.blad, false);
+F(5.98, 6.79, 0.9, 0.906, -2.97, -2.5, M({ color: 0x111214, roughness: 0.15 }), false);   // kookplaat
+F(7.6, 8.17, 0.884, 0.904, -2.95, -2.52, mat.rvs, false);                                  // spoelbak
+cyl(7.9, -2.98, 0.015, 0.9, 1.25, mat.rvs, 8); F(7.89, 7.91, 1.22, 1.25, -2.98, -2.75, mat.rvs, false);
+F(6.13, 6.63, 1.55, 1.62, -HB, -2.55, mat.zwart, false); F(6.28, 6.48, 1.62, CEIL0, -HB, -2.85, mat.zwart, false); // afzuigkap
+F(4.84, 5.44, 0, 2.2, -2.4, -0.85, mat.zwart);                                             // hoge kasten
+F(5.44, 5.452, 0.95, 1.55, -1.58, -1.04, M({ color: 0x0B0C0E, roughness: 0.1 }), false);   // oven
+F(4.84, 5.44, 2.2, CEIL0, -2.4, -0.85, mat.stuc, false);
+F(6.43, 8.07, 0, 0.86, -1.22, -0.45, mat.zwart);                                           // kookeiland
+F(6.41, 8.09, 0.86, 0.92, -1.27, -0.27, mat.blad, false);
+for (const x of [6.95, 7.6]) { cyl(x, -0.05, 0.17, 0.62, 0.66, mat.donkerhout); cyl(x, -0.05, 0.02, 0, 0.62, mat.zwart, 6); solid(x - 0.17, x + 0.17, -0.22, 0.12, 0, 0.66); }
+
+// --- toilet, meterkast, berging ---
+F(0.45, 0.85, 0, 0.42, -HB, -2.5, mat.porselein); F(0.42, 0.88, 0.42, 1.1, -HB, -2.88, mat.porselein, false);
+F(1.0, 1.32, 0.78, 0.92, -HB, -2.8, mat.porselein, false);
+F(-0.9, -0.32, 0.3, 2.0, -HB, -2.6, mat.stofLicht, false);                                  // meters
+F(-3.25, -2.65, 0, 0.85, -HB, -2.42, mat.wasm); F(-3.25, -2.65, 0.85, 1.7, -HB, -2.42, mat.wasm);
+cyl(-2.95, -2.41, 0.16, 0.25, 0.55, mat.zwart).rotation.x = Math.PI / 2;
+F(-2.4, -1.75, 0, 0.85, -HB, -2.5, mat.wasm);                                              // hybride binnendeel
+F(-1.6, -1.15, 0, 1.9, -2.6, -1.65, mat.hout);                                             // stelling
+for (const y of [0.5, 1.0, 1.5]) F(-1.6, -1.15, y, y + 0.03, -2.6, -1.65, mat.hout, false);
+
+// --- verdieping: badkamer ---
+const Y1 = F1;
+F(0, 1.0, Y1, Y1 + 0.05, -HB, -2.06, mat.tegel);                                           // douche
+box(0, 0.95, Y1, Y1 + 2.0, -2.08, -2.06, mat.glas, { cam: false, shadow: false, solid: true });
+cyl(0.5, -2.6, 0.12, Y1 + 2.1, Y1 + 2.12, mat.rvs);
+F(0, 0.55, Y1 + 0.35, Y1 + 0.75, -1.85, -1.45, mat.porselein); F(0, 0.12, Y1 + 0.75, Y1 + 1.15, -1.85, -1.45, mat.porselein, false);
+F(2.13, 2.6, Y1 + 0.45, Y1 + 0.85, -2.32, -1.51, mat.hout); F(2.13, 2.6, Y1 + 0.85, Y1 + 0.9, -2.32, -1.51, mat.porselein, false);
+F(2.59, 2.6, Y1 + 1.1, Y1 + 1.9, -2.25, -1.58, M({ color: 0xC9D6DE, roughness: 0.05, metalness: 0.8 }), false);
+F(0, 1.71, Y1, Y1 + 0.55, -0.81, -0.06, mat.porselein); F(0.08, 1.63, Y1 + 0.551, Y1 + 0.555, -0.73, -0.14, M({ color: 0xA9C3CF, roughness: 0.1 }), false);
+
+// --- verdieping: slaapkamers ---
+bed(6.76, 8.37, -3.03, -2.1, Y1, [6.76, 7.9, -3.03, -2.1], 'x2');                              // achter klein
+tafel(6.28, 7.58, -0.66, -0.06, 0.75, mat.wit, Y1); stoel(6.93, -0.95, '-z', Y1, mat.zwart);
+F(4.68, 5.23, Y1, Y1 + 2.0, -2.46, -1.56, mat.wit);
+bed(5.13, 6.89, 0.92, 2.92, Y1, [5.13, 6.89, 0.92, 2.35], 'z2');                               // achter groot
+F(4.6, 5.05, Y1, Y1 + 0.5, 2.5, 2.92, mat.wit); F(6.97, 7.42, Y1, Y1 + 0.5, 2.5, 2.92, mat.wit);
+F(3.74, 4.29, Y1, Y1 + 2.0, 0.92, 2.3, mat.wit);
+F(8.0, 8.6, Y1, Y1 + 0.45, 2.2, 2.8, mat.stof); F(8.4, 8.6, Y1 + 0.45, Y1 + 0.9, 2.2, 2.8, mat.stof, false);
+bed(2.16, 3.66, 2.07, 2.84, Y1, [2.16, 3.66, 2.07, 2.84], 'x1');                               // voor
+F(0.82, 1.7, Y1, Y1 + 0.8, 0.05, 0.5, mat.donkerhout); F(1.08, 1.95, Y1, Y1 + 0.8, 2.6, 3.0, mat.donkerhout);
+
+// --- opbouw (inrichting uit het juli-model) ---
+withTag('opb', () => {
+  const Y2 = OPB;
+  bed(0.9, 3.0, 0.45, 2.15, Y2, [1.45, 3.0, 0.45, 2.15], 'x1');                               // slaapkamer 2
+  bed(5.88, 7.93, 1.75, 2.75, Y2, [6.5, 7.93, 1.75, 2.75], 'x2');                             // slaapkamer 1
+  F(4.0, 4.4, Y2, Y2 + 0.5, 2.4, 2.9, mat.wit);
+  tafel(6.48, 8.12, -2.72, -1.97, 0.78, mat.hout, Y2); stoel(7.3, -1.65, '+z', Y2, mat.zwart);  // werkplek
+  F(0.85, 1.45, Y2, Y2 + 0.85, -HB, -2.42, mat.wasm); F(1.55, 2.15, Y2, Y2 + 0.85, -HB, -2.42, mat.wasm); // was + droger
+  F(2.05, 2.45, Y2 + 0.75, Y2 + 0.85, -1.85, -1.4, mat.porselein);                            // wastafeltje
+  cyl(1.15, -2.41, 0.16, Y2 + 0.25, Y2 + 0.55, mat.zwart).rotation.x = Math.PI / 2;
+
+});
+
+// =====================================================================
+// OMGEVING
+// =====================================================================
+box(-40, 40, -0.08, -0.03, -40, 40, mat.gras, { cam: false, shadow: false });
+const G = (x1, x2, z1, z2, m, y = 0) => box(x1, x2, y - 0.05, y, z1, z2, m, { cam: false, shadow: false });
+G(L + EXT, L + EXT + 3, -HB - EXT, HB + EXT, mat.stoep);                     // terras
+G(AB - EXT - 2.5, AB - EXT, -HB - EXT, 0.1, mat.stoep);                      // oprit/voorpad
+G(-1.0, 0, -0.1, 0.6, mat.stoep);
+G(-12, L + 16, HB + EXT, HB + EXT + 1.7, mat.klinker, 0.01);                 // pad langs de zijgevel
+G(-12, L + 16, HB + EXT + 1.7, HB + EXT + 8, mat.klinker, 0.005);            // straat
+G(-12, AB - EXT - 2.5, -20, HB + EXT, mat.klinker, 0.005);                   // straat voor
+// tuinschutting met poortje aan de straatkant
+const HEK = (x1, x2, z1, z2) => box(x1, x2, 0, 1.8, z1, z2, mat.hek, { solid: true, cam: false });
+HEK(L + EXT, L + 11, -HB - EXT - 0.04, -HB - EXT + 0.02);
+HEK(L + EXT + 0.6, L + 8.2, HB + EXT - 0.02, HB + EXT + 0.04); HEK(L + 9.2, L + 11, HB + EXT - 0.02, HB + EXT + 0.04);
+HEK(L + 11, L + 11.06, -HB - EXT, HB + EXT + 0.04);
+// heg voor (zoals op de foto) en bomen
+box(AB - EXT - 2.3, -0.4, 0, 0.85, 0.7, 1.1, mat.haag, { solid: true, cam: false });
+box(-5.9, -5.4, 0, 0.85, 1.1, HB + EXT, mat.haag, { solid: true, cam: false });
+for (const [x, z] of [[-1.6, 1.6], [-2.3, 1.8]]) { cyl(x, z, 0.25, 0, 0.5, mat.pot); cyl(x, z, 0.04, 0.5, 1.4, mat.stam); bol(x, 1.7, z, 0.45, mat.boom); solid(x - 0.25, x + 0.25, z - 0.25, z + 0.25, 0, 1.5); }
+for (const [x, z] of [[L + 9.5, -1.5], [-11, 12], [4, 12.5], [14, 12]]) { cyl(x, z, 0.15, 0, 2.4, mat.stam); bol(x, 3.3, z, 1.5, mat.boom); bol(x + 0.6, 2.8, z + 0.3, 1.0, mat.boom); solid(x - 0.2, x + 0.2, z - 0.2, z + 0.2, 0, 3); }
+
+// buurwoningen (vereenvoudigd, aan de burenzijde)
+for (const [i, kleur] of [[1, 1], [2, 0.95], [3, 0.92]]) {
+  const z2 = -HB - EXT - (i - 1) * (2 * HB + EXT), z1 = z2 - (2 * HB + EXT);
+  const tint = m => { const c = m.clone(); c.color = new THREE.Color().setScalar(kleur); return c; };
+  box(-EXT, L + EXT, 0, BAND, z1, z2, tint(mat.grijs), { solid: true });
+  box(-EXT, L + EXT, BAND, ROOF, z1, z2, tint(mat.geel), { solid: true });
+  box(-EXT - 0.04, L + EXT + 0.04, BAND, BAND + 0.24, z1, z2, mat.trim);
+  box(-EXT - 0.04, L + EXT + 0.04, ROOF - 0.34, ROOF + 0.04, z1, z2, mat.trim);
+  box(AB - EXT, -EXT, 0, AH, z1, z2 - 2.6, tint(mat.grijs), { solid: true });
+  box(AB - EXT - 0.05, -EXT, AH, AH + 0.25, z1, z2 - 2.6, mat.trim);
+  for (const [x, zc, w, y1, y2] of [[-EXT - 0.02, z1 + 1.6, 1.9, 3.75, 5.0], [-EXT - 0.02, z2 - 1.6, 1.0, 4.1, 4.9], [-EXT - 0.02, z1 + 1.8, 2.0, 0.6, 2.35],
+    [L + EXT + 0.02, z1 + 1.6, 1.9, 3.75, 5.0], [L + EXT + 0.02, z2 - 1.6, 1.0, 3.8, 4.9], [L + EXT + 0.02, (z1 + z2) / 2, 4.6, 0.02, 2.4]]) {
+    box(x - 0.02, x + 0.02, y1, y2, zc - w / 2, zc + w / 2, mat.kozijn, { cam: false });
+    box(x - 0.03, x + 0.03, y1 + 0.06, y2 - 0.06, zc - w / 2 + 0.06, zc + w / 2 - 0.06, M({ color: 0x5E7584, roughness: 0.1, metalness: 0.4 }), { cam: false });
+  }
+  HEK(L + EXT, L + 11, z1 - 0.03, z1 + 0.03);
+}
+// wereldgrens
+solid(-30, -29, -40, 40, -1, 20); solid(29, 30, -40, 40, -1, 20); solid(-40, 40, -30, -29, -1, 20); solid(-40, 40, 29, 30, -1, 20);
+
+// =====================================================================
+// SITUATIE (huidig / met opbouw)
+// =====================================================================
+let opbouw = true, actWalls = [], actSurfs = [], camList = [];
+const actief = t => t === null || (t === 'opb' && opbouw) || (t === 'nu' && !opbouw);
+function zetSituatie(aan) {
+  opbouw = aan;
+  groups.opb.visible = aan; groups.nu.visible = !aan;
+  actWalls = walls.filter(w => actief(w.tag));
+  actSurfs = surfs.filter(s => actief(s.tag));
+  camList = camMeshes.filter(m => actief(m.userData.tag));
+  document.getElementById('sit-nu').classList.toggle('actief', !aan);
+  document.getElementById('sit-opbouw').classList.toggle('actief', aan);
+  document.getElementById('ga-opbouw').disabled = !aan;
+  document.getElementById('ga-opbouw').style.opacity = aan ? 1 : 0.4;
+  if (!aan && P && P.y > ROOF - 0.5) ga('overloop');
+}
+
+// =====================================================================
+// PERSONAGE
+// =====================================================================
+const held = new THREE.Group(); scene.add(held);
+const huid = M({ color: 0xE2B593, roughness: 0.7 }), shirt = M({ color: 0x3E5C76 }), broek = M({ color: 0x2F3440 }), haar = M({ color: 0x4A3626 }), schoen = M({ color: 0x1E1F22 });
+const cap = (r, l, m) => { const c = new THREE.Mesh(new THREE.CapsuleGeometry(r, l, 6, 12), m); c.castShadow = true; return c; };
+function ledemaat(r, l, m, x, y, voet) {
+  const piv = new THREE.Group(); piv.position.set(x, y, 0);
+  const c = cap(r, l, m); c.position.y = -l / 2 - r; piv.add(c);
+  if (voet) { const s = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.07, 0.24), schoen); s.position.set(0, -l - 2 * r + 0.03, 0.05); s.castShadow = true; piv.add(s); }
+  held.add(piv); return piv;
+}
+const beenL = ledemaat(0.075, 0.68, broek, -0.1, 0.92, true), beenR = ledemaat(0.075, 0.68, broek, 0.1, 0.92, true);
+const romp = cap(0.17, 0.36, shirt); romp.position.y = 1.22; romp.scale.z = 0.72; held.add(romp);
+const armL = ledemaat(0.055, 0.5, shirt, -0.24, 1.46), armR = ledemaat(0.055, 0.5, shirt, 0.24, 1.46);
+for (const a of [armL, armR]) { const h = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 8), huid); h.position.y = -0.68; a.add(h); }
+const hoofd = new THREE.Mesh(new THREE.SphereGeometry(0.12, 20, 16), huid); hoofd.position.y = 1.64; hoofd.castShadow = true; held.add(hoofd);
+const kap = new THREE.Mesh(new THREE.SphereGeometry(0.127, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), haar); kap.position.y = 1.655; kap.rotation.x = -0.25; held.add(kap);
+const neus = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 6), huid); neus.position.set(0, 1.63, 0.12); held.add(neus);
+
+// =====================================================================
+// BEWEGING & BOTSING
+// =====================================================================
+const P = { x: -4.6, y: 0, z: -0.75, vy: 0, grond: true, hoek: Math.PI / 2, fase: 0, snelheid: 0 };
+function inVlak(s, x, z) {
+  if (s.k === 'r') return x >= s.x1 && x <= s.x2 && z >= s.z1 && z <= s.z2;
+  if (s.k === 'p') {
+    let inn = false; const p = s.pts;
+    for (let i = 0, j = p.length - 1; i < p.length; j = i++)
+      if ((p[i][1] > z) !== (p[j][1] > z) && x < (p[j][0] - p[i][0]) * (z - p[i][1]) / (p[j][1] - p[i][1]) + p[i][0]) inn = !inn;
+    return inn;
+  }
+  const dx = x - s.cx, dz = z - s.cz, r = Math.hypot(dx, dz);
+  if (r < s.r0 || r > s.r1) return false;
+  const d = ((Math.atan2(dz, dx) - s.a0) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+  return d <= s.a1 - s.a0;
+}
+function grondOp(x, z, y) {
+  let best = y + STEP >= 0 ? 0 : -1e9;
+  for (const s of actSurfs) if (s.top <= y + STEP && s.top > best && inVlak(s, x, z)) best = s.top;
+  return best;
+}
+const geblokt = (x, z, y) => actSurfs.some(s => s.top > y + STEP && s.bot < y + BODY && inVlak(s, x, z));
+function duwUitMuren(x, z, y) {
+  for (let it = 0; it < 3; it++) for (const w of actWalls) {
+    if (w.y2 <= y + 0.3 || w.y1 >= y + BODY) continue;
+    if (x < w.x1 - RAD || x > w.x2 + RAD || z < w.z1 - RAD || z > w.z2 + RAD) continue;
+    const cx = Math.max(w.x1, Math.min(x, w.x2)), cz = Math.max(w.z1, Math.min(z, w.z2));
+    const dx = x - cx, dz = z - cz, d2 = dx * dx + dz * dz;
+    if (d2 >= RAD * RAD) continue;
+    if (d2 > 1e-9) { const d = Math.sqrt(d2); x = cx + dx / d * RAD; z = cz + dz / d * RAD; }
+    else {
+      const pen = [[x - w.x1 + RAD, -1, 0], [w.x2 - x + RAD, 1, 0], [z - w.z1 + RAD, 0, -1], [w.z2 - z + RAD, 0, 1]].sort((a, b) => a[0] - b[0])[0];
+      x += pen[1] * pen[0]; z += pen[2] * pen[0];
+    }
+  }
+  return [x, z];
+}
+const keys = new Set();
+let stick = { x: 0, y: 0 }, cam = { yaw: -Math.PI / 2, pitch: 0.28, dist: 3.2, d: 3.2, eerste: false };
+function stap(dt) {
+  let fx = 0, fz = 0;
+  if (keys.has('KeyW') || keys.has('ArrowUp')) fz += 1;
+  if (keys.has('KeyS') || keys.has('ArrowDown')) fz -= 1;
+  if (keys.has('KeyA') || keys.has('ArrowLeft')) fx -= 1;
+  if (keys.has('KeyD') || keys.has('ArrowRight')) fx += 1;
+  fx += stick.x; fz += stick.y;
+  const len = Math.hypot(fx, fz);
+  const rent = keys.has('ShiftLeft') || keys.has('ShiftRight') || Math.hypot(stick.x, stick.y) > 0.95;
+  const vmax = rent ? 3.6 : 1.7;
+  let mx = 0, mz = 0;
+  if (len > 0.05) {
+    const n = Math.min(1, len) / len, sy = Math.sin(cam.yaw), cy = Math.cos(cam.yaw);
+    mx = (fx * cy - fz * sy) * n; mz = (-fx * sy - fz * cy) * n;
+    const doel = Math.atan2(mx, mz);
+    let dh = ((doel - P.hoek + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+    P.hoek += dh * Math.min(1, dt * 12);
+  }
+  const doelV = Math.hypot(mx, mz) * vmax;
+  P.snelheid += (doelV - P.snelheid) * Math.min(1, dt * 10);
+  const sp = Math.hypot(mx, mz) > 0 ? P.snelheid / Math.hypot(mx, mz) : 0;
+  let nx = P.x + mx * sp * dt, nz = P.z + mz * sp * dt;
+  if (geblokt(nx, nz, P.y)) {
+    if (!geblokt(nx, P.z, P.y)) nz = P.z; else if (!geblokt(P.x, nz, P.y)) nx = P.x; else { nx = P.x; nz = P.z; }
+  }
+  [nx, nz] = duwUitMuren(nx, nz, P.y);
+  if (!geblokt(nx, nz, P.y)) { P.x = nx; P.z = nz; }
+  const g = grondOp(P.x, P.z, P.y);
+  if (P.grond && P.vy <= 0 && P.y - g <= 0.3) P.y = g;
+  else {
+    P.vy -= 9.8 * dt; P.y += P.vy * dt;
+    if (P.y <= g) { P.y = g; P.vy = 0; P.grond = true; } else P.grond = false;
+  }
+  if (P.y < -5) ga('voordeur');
+}
+function spring() { if (P.grond) { P.vy = 3.6; P.grond = false; } }
+
+// =====================================================================
+// CAMERA
+// =====================================================================
+const ray = new THREE.Raycaster();
+const tmpA = new THREE.Vector3(), tmpB = new THREE.Vector3();
+function camUpdate(dt) {
+  const head = tmpA.set(P.x, P.y + (cam.eerste ? 1.62 : 1.5), P.z);
+  const dir = tmpB.set(Math.sin(cam.yaw) * Math.cos(cam.pitch), Math.sin(cam.pitch), Math.cos(cam.yaw) * Math.cos(cam.pitch));
+  held.visible = !cam.eerste;
+  if (cam.eerste) {
+    camera.position.copy(head).addScaledVector(dir, -0.05);
+    camera.lookAt(head.x - dir.x, head.y - dir.y, head.z - dir.z);
+    return;
+  }
+  ray.set(head, dir); ray.far = cam.dist + 0.3;
+  const hit = ray.intersectObjects(camList, false)[0];
+  const doel = hit ? Math.max(0.35, hit.distance - 0.25) : cam.dist;
+  cam.d += (doel - cam.d) * Math.min(1, dt * (doel < cam.d ? 25 : 4));
+  camera.position.copy(head).addScaledVector(dir, cam.d);
+  camera.lookAt(head);
+  held.visible = cam.d > 0.6;
+}
+
+// =====================================================================
+// RUIMTES, PLATTEGROND, TELEPORT
+// =====================================================================
+const RUIMTES = [
+  [0, 'Toilet', 0, 1.39, -HB, -2.08], [0, 'Meterkast', -0.9, -0.3, -HB, -2.08], [0, 'Trap', 2.66, 4.63, -HB, -2.08],
+  [0, 'Trapkast', 3.43, 4.78, -2.08, -0.83], [0, 'Keuken', 4.78, L, -HB, -0.83], [0, 'Woonkamer', 0, L, -0.83, HB],
+  [0, 'Hal', -1.0, 4.78, -HB, -0.83], [0, 'Berging', AB, -1.0, -HB, -1.4], [0, 'Portiek', AB - EXT, -1.0, -1.4, -0.1],
+  [1, 'Badkamer', 0, 2.66, -HB, 0], [1, 'Overloop', 2.66, 4.63, -HB, 0], [1, 'Slaapkamer achter', 4.63, L, -HB, 0],
+  [1, 'Slaapkamer voor', 0, 3.69, 0, HB], [1, 'Grote slaapkamer', 3.69, L, 0, HB],
+  [2, 'Wasruimte', 0, 2.5, -HB, -0.24], [2, 'Overloop', 2.5, 4.85, -HB, -0.24], [2, 'Werkplek', 4.85, L, -HB, -0.24],
+  [2, 'Slaapkamer 2', 0, 3.68, -0.24, HB], [2, 'Slaapkamer 1', 3.68, L, -0.24, HB],
+];
+const LAGEN = ['Begane grond', 'Verdieping', 'Opbouw'];
+const laagVan = y => y < 1.6 ? 0 : y < ROOF - 0.3 ? 1 : 2;
+let vorigeRuimte = '';
+function ruimteLabel() {
+  const lv = laagVan(P.y);
+  let naam = null;
+  for (const [l, n, x1, x2, z1, z2] of RUIMTES) if (l === lv && P.x >= x1 && P.x <= x2 && P.z >= z1 && P.z <= z2) { naam = n; break; }
+  if (lv === 1 && P.x > 2.6 && P.x < 4.7 && P.z < -2.1 && P.y < F1 - 0.1) naam = 'Trap';
+  if (lv === 2 && Math.hypot(P.x - SC.x, P.z - SC.z) < SP_R && P.y < OPB - 0.1) naam = 'Spiltrap';
+  let laag = LAGEN[lv];
+  if (!naam) { laag = 'Buiten'; naam = P.x > L ? 'Achtertuin' : P.z > HB + EXT ? 'Straat' : P.x < -EXT ? 'Voortuin' : 'Buiten'; }
+  const s = laag + '|' + naam;
+  if (s !== vorigeRuimte) { vorigeRuimte = s; document.getElementById('kamer-laag').textContent = laag; document.getElementById('kamer-naam').textContent = naam; }
+}
+const kaart = document.getElementById('kaart'), kc = kaart.getContext('2d');
+const KX0 = -4.4, KZ0 = -4.2, KS = 40;
+function tekenKaart() {
+  const lv = laagVan(P.y), base = [0, F1, OPB][lv], yy = base + 1.0;
+  const X = x => (x - KX0) * KS, Z = z => (z - KZ0) * KS;
+  kc.clearRect(0, 0, kaart.width, kaart.height);
+  kc.fillStyle = '#3A3E45'; kc.fillRect(X(-EXT), Z(-HB - EXT), (L + 2 * EXT) * KS, (2 * HB + 2 * EXT) * KS);
+  kc.fillStyle = '#4B4F57'; kc.fillRect(X(0), Z(-HB), L * KS, 2 * HB * KS);
+  if (lv === 0) { kc.fillStyle = '#4B4F57'; kc.fillRect(X(AB), Z(-HB), (-1 - AB) * KS, (HB - 1.4) * KS); kc.fillRect(X(-1), Z(-2.08), KS, 1.88 * KS); }
+  kc.fillStyle = '#6A6F78';
+  for (const s of actSurfs) if (s.top > base + 0.05 && s.top < base + 3 && s.k !== 'r') {
+    kc.beginPath();
+    if (s.k === 'p') s.pts.forEach(([x, z], i) => i ? kc.lineTo(X(x), Z(z)) : kc.moveTo(X(x), Z(z)));
+    else { kc.arc(X(s.cx), Z(s.cz), s.r1 * KS, s.a0, s.a1); kc.lineTo(X(s.cx), Z(s.cz)); }
+    kc.fill();
+  }
+  for (const s of actSurfs) if (s.k === 'r' && s.top > base + 0.05 && s.top < base + 1.2 && s.x2 - s.x1 < 0.5) kc.fillRect(X(s.x1), Z(s.z1), (s.x2 - s.x1) * KS, (s.z2 - s.z1) * KS);
+  kc.fillStyle = '#E9E5DC';
+  for (const w of actWalls) if (w.y1 <= yy && w.y2 >= yy && w.x1 > -4.5 && w.x2 < 9.3 && w.z1 > -3.5 && w.z2 < 3.5) kc.fillRect(X(w.x1), Z(w.z1), Math.max(2, (w.x2 - w.x1) * KS), Math.max(2, (w.z2 - w.z1) * KS));
+  const px = X(P.x), pz = Z(P.z);
+  const vy = Math.atan2(-Math.cos(cam.yaw), -Math.sin(cam.yaw));
+  kc.fillStyle = 'rgba(201,168,124,.35)'; kc.beginPath(); kc.moveTo(px, pz); kc.arc(px, pz, 46, vy - 0.55, vy + 0.55); kc.fill();
+  kc.fillStyle = '#C9A87C'; kc.strokeStyle = '#23262B'; kc.lineWidth = 3;
+  kc.beginPath(); kc.arc(px, pz, 9, 0, Math.PI * 2); kc.fill(); kc.stroke();
+  kc.fillStyle = '#A9ADB4'; kc.font = '600 20px -apple-system, system-ui, sans-serif'; kc.fillText(LAGEN[lv], 12, 26);
+  kc.fillText('tuin →', kaart.width - 74, kaart.height / 2 + 6);
+}
+const PLEKKEN = {
+  voordeur: [-4.6, 0, -0.75, -Math.PI / 2], woonkamer: [3.6, 0, 1.4, Math.PI / 2], keuken: [6.6, 0, 0.3, 0],
+  tuin: [L + 4.5, 0, 0.5, Math.PI / 2], overloop: [3.67, F1, -0.45, 0], opbouw: [6.0, OPB, 0.8, Math.PI / 2],
+};
+function ga(naam) {
+  const [x, y, z, yaw] = PLEKKEN[naam];
+  Object.assign(P, { x, y, z, vy: 0, grond: true, hoek: yaw + Math.PI });
+  cam.yaw = yaw; cam.d = 0.6;
+}
+
+// =====================================================================
+// INVOER & UI
+// =====================================================================
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  keys.add(e.code);
+  if (e.code === 'Space') { spring(); e.preventDefault(); }
+  if (e.code === 'KeyV') zetCam(!cam.eerste);
+  if (e.code === 'KeyO') zetSituatie(!opbouw);
+  if (e.code.startsWith('Arrow')) e.preventDefault();
+});
+addEventListener('keyup', e => keys.delete(e.code));
+addEventListener('blur', () => keys.clear());
+function zetCam(eerste) {
+  cam.eerste = eerste;
+  document.getElementById('cam-1').classList.toggle('actief', eerste);
+  document.getElementById('cam-3').classList.toggle('actief', !eerste);
+}
+document.getElementById('cam-1').onclick = () => zetCam(true);
+document.getElementById('cam-3').onclick = () => zetCam(false);
+document.getElementById('sit-nu').onclick = () => zetSituatie(false);
+document.getElementById('sit-opbouw').onclick = () => zetSituatie(true);
+document.getElementById('paneel-knop').onclick = () => document.getElementById('paneel').classList.toggle('dicht');
+for (const b of document.querySelectorAll('[data-ga]')) b.onclick = () => { ga(b.dataset.ga); b.blur(); };
+if (innerWidth > 760) document.getElementById('paneel').classList.remove('dicht');
+
+// slepen = rondkijken (muis en touch)
+const kijk = new Map();
+view.addEventListener('pointerdown', e => { view.setPointerCapture(e.pointerId); kijk.set(e.pointerId, [e.clientX, e.clientY]); });
+view.addEventListener('pointermove', e => {
+  const p = kijk.get(e.pointerId); if (!p) return;
+  const k = e.pointerType === 'touch' ? 0.007 : 0.005;
+  cam.yaw -= (e.clientX - p[0]) * k;
+  cam.pitch = Math.max(-0.7, Math.min(1.25, cam.pitch + (e.clientY - p[1]) * k * (cam.eerste ? -1 : 1)));
+  kijk.set(e.pointerId, [e.clientX, e.clientY]);
+});
+const losKijk = e => kijk.delete(e.pointerId);
+view.addEventListener('pointerup', losKijk); view.addEventListener('pointercancel', losKijk);
+view.addEventListener('wheel', e => { cam.dist = Math.max(1.2, Math.min(9, cam.dist * (1 + Math.sign(e.deltaY) * 0.1))); e.preventDefault(); }, { passive: false });
+
+// joystick op touch-apparaten
+if (matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window) document.body.classList.add('touch');
+const stickEl = document.getElementById('stick'), knop = stickEl.querySelector('i');
+let stickId = null;
+const stickMove = e => {
+  const r = stickEl.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  let dx = (e.clientX - cx) / (r.width / 2), dy = (e.clientY - cy) / (r.height / 2);
+  const l = Math.hypot(dx, dy); if (l > 1) { dx /= l; dy /= l; }
+  stick = { x: dx, y: -dy };
+  knop.style.transform = `translate(${dx * 35}px, ${dy * 35}px)`;
+};
+stickEl.addEventListener('pointerdown', e => { stickId = e.pointerId; stickEl.setPointerCapture(e.pointerId); stickMove(e); });
+stickEl.addEventListener('pointermove', e => { if (e.pointerId === stickId) stickMove(e); });
+const stickLos = () => { stickId = null; stick = { x: 0, y: 0 }; knop.style.transform = ''; };
+stickEl.addEventListener('pointerup', stickLos); stickEl.addEventListener('pointercancel', stickLos);
+let laatsteTik = 0;
+view.addEventListener('pointerup', e => { if (e.pointerType === 'touch') { const t = performance.now(); if (t - laatsteTik < 300) spring(); laatsteTik = t; } });
+
+function resize() { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); }
+addEventListener('resize', resize); resize();
+
+// =====================================================================
+// LOOP
+// =====================================================================
+zetSituatie(true);
+const klok = new THREE.Clock();
+let kaartTeller = 0;
+renderer.setAnimationLoop(() => {
+  const dt = Math.min(0.05, klok.getDelta());
+  stap(dt / 2); stap(dt / 2);
+  held.position.set(P.x, P.y, P.z); held.rotation.y = P.hoek;
+  const amp = Math.min(1, P.snelheid / 1.7) * (P.grond ? 1 : 0.2);
+  P.fase += dt * (3 + P.snelheid * 3.2);
+  const sw = Math.sin(P.fase) * 0.65 * amp;
+  beenL.rotation.x = sw; beenR.rotation.x = -sw; armL.rotation.x = -sw * 0.8; armR.rotation.x = sw * 0.8;
+  romp.position.y = 1.22 + Math.abs(Math.cos(P.fase)) * 0.03 * amp;
+  camUpdate(dt);
+  sun.position.set(P.x - 8, 22, P.z - 15); sun.target.position.set(P.x, 0, P.z);
+  ruimteLabel();
+  if (++kaartTeller % 2 === 0) tekenKaart();
+  renderer.render(scene, camera);
+});
+window.__debug = { P, cam, ga, zetSituatie, walls, surfs };
+</script>
+</body>
+</html>
